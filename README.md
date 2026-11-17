@@ -19,10 +19,11 @@ icon-*.png  favicon-*.png  apple-touch-icon.png
 
 ## 수정 사항 반영
 
-1. 파일을 고친 뒤 `sw.js`의 `VERSION` 값을 올립니다 (예: `v3.6.0-gh` → `v3.6.1-gh`).
-2. `main` 브랜치에 push 합니다.
-3. `index.html`과 `data/*.js`는 network-first 라서 다음 실행에 최신본이 뜨고,
-   아이콘·CSS는 캐시 우선 + 백그라운드 갱신, 이전 버전 캐시는 자동 삭제됩니다.
+1. 파일을 고친 뒤 `sw.js`의 `VERSION` 값을 올립니다 (현재 `v3.6.2-gh` → 예: `v3.6.3-gh`).
+2. `main` 브랜치에 push 합니다. (GitHub Pages 빌드 20~30초)
+3. `index.html`과 `data/*.js`는 network-first(+ETag 재검증)라서 다음 실행에 최신본이 뜨고,
+   내용이 그대로면 304 로 거의 받지 않습니다. 아이콘·CSS는 캐시 우선 + 백그라운드 갱신,
+   이전 버전 캐시는 activate 에서 자동 삭제됩니다.
 
 ## 출처
 
