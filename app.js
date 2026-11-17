@@ -1072,7 +1072,7 @@
 
     var body;
     if (c._lv === 6) {
-      body = '<div class="fb-ex"><p class="en">' + escapeHtml(bt.pre) + '<b> ' + escapeHtml(bt.ans) + ' </b>' + escapeHtml(bt.post) + '</p>' +
+      body = '<div class="fb-ex"><p class="en">' + escapeHtml(bt.pre) + '<b>' + escapeHtml(bt.ans) + '</b>' + escapeHtml(bt.post) + '</p>' +
         '<p class="ko">' + escapeHtml(c.m || '') + '</p></div>' +
         '<div class="fb-ex fb-pair"><p class="en">↳ ' + escapeHtml(c.e || '') + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>' +
         '<div class="fb-mean"><span class="pill small">정답 「' + escapeHtml(bt.ans) + '」 = ' + escapeHtml(BLANK_GLOSS[String(bt.ans).toLowerCase()] || '') + '</span>' +
@@ -1749,7 +1749,7 @@
     var box = $('#aboutList');
     if (!box) return;
     var meta = META || {};
-    var lvOrder = [1, 2, 3, 4, 5];
+    var lvOrder = [1, 2, 3, 4, 5, 6];
     var rows = lvOrder.map(function (lv) {
       var m = (meta.levels || {})[lv] || {};
       return '<tr><td><span class="bt-lv l' + lv + '">Lv.' + lv + '</span> <b>' + (m.label || LEVEL_META[lv].name) +
@@ -1785,7 +1785,7 @@
     if (L.oxford5000extra) listLine.push('Oxford 5000 추가분 ' + L.oxford5000extra.have.toLocaleString() + '/' + L.oxford5000extra.total.toLocaleString());
 
     box.innerHTML =
-      '<p class="basis-lead">단어를 <b>쉬운 순서(CEFR A1 → C1)</b>로 줄 세우고, 그 위에 <b>구동사·회화 구문 1,000개</b>를 얹었습니다. ' +
+      '<p class="basis-lead">단어를 <b>쉬운 순서(CEFR A1 → C1)</b>로 줄 세우고, 그 위에 <b>구동사·회화 구문 1,000개</b>, 마지막으로 <b>상황별 실전 통문장 412개</b>를 얹었습니다. ' +
       '“몇 개를 외웠나”가 아니라 <b>“그 단계에서 무슨 말을 할 수 있나”</b>가 기준입니다. ' +
       'A1·A2 단어는 Lv.3·4에 들어가지 않습니다(빌드 검사로 확인).</p>' +
       '<table class="basis-table"><thead><tr><th>단계 · 기준</th><th>개수</th><th>회화 커버</th></tr></thead><tbody>' + rows + '</tbody></table>' +
@@ -1803,7 +1803,9 @@
       '<li><b>빈칸 채우기</b> — 회화 예문의 핵심 표현을 뚫고 4개 중 고르게 합니다. 정답 뒤에 “왜 이 표현인지” 유사 표현과 비교해 설명합니다.</li>' +
       '<li><b>문장 순서</b> — 한국어를 보고 영어 타일을 순서대로 놓습니다. 틀리면 한 번 더, 두 번째 틀리면 정답과 어순 설명을 봅니다.</li>' +
       '<li><b>플래시카드</b> — 탭해서 뒤집고 알아요/애매해요/몰라요.</li>' +
-      '<li><b>SRS</b> — 오답 10분 → 1 → 3 → 7 → 14 → 30일 → 마스터(60일+). 학습 기록은 localStorage에 남고 JSON으로 백업합니다.</li></ul></div>' +
+      '<li><b>SRS</b> — 오답 10분 → 1 → 3 → 7 → 14 → 30일 → 마스터(60일+). 학습 기록은 localStorage에 남고 JSON으로 백업합니다.</li>' +
+      '<li><b>학습 모드별 기록</b> — 4지선다·빈칸·순서·카드마다 오늘/누적 학습 수와 정답률을 따로 쌓아 홈과 통계에 보여줍니다.</li>' +
+      '<li><b>실전 회화 문장(Lv.6)</b> — 상황 태그를 고르면 그 상황의 질문–응답 쌍을 빈칸·순서·뜻·카드로 돌립니다. 통문장은 한국어를 보고 영어로 말하는 방향으로 연습합니다.</li></ul></div>' +
       '<div class="basis-block"><b>출처</b><ul class="basis-src">' +
       '<li><a href="https://www.newgeneralservicelist.com/new-general-service-list" target="_blank" rel="noopener">NGSL 1.2 · NGSL-Spoken</a> — newgeneralservicelist.com (CC BY-SA)</li>' +
       '<li><a href="https://www.oxfordlearnersdictionaries.com/wordlists/oxford3000-5000" target="_blank" rel="noopener">Oxford 3000 / Oxford 5000 (A1~C1)</a> — oxfordlearnersdictionaries.com</li>' +
