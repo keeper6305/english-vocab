@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>회화 영어 단어장 · 6000 SRS</title>
+<meta name="description" content="회화 필수 5,000단어와 구동사·회화 구문 1,000개를 4지선다·빈칸 채우기·문장 순서 맞추기·플래시카드와 간격 반복(SRS)으로 익히는 모바일 PWA.">
+<meta name="theme-color" content="#5b5bd6">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="영단어 6000">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">6.0K</div>
+      <div class="brand-text">
+        <strong>회화 영어 6,000</strong>
+        <span id="brandSub">B2·C1 상급 + 구동사·구문 1,000</span>
+      </div>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="테마 전환" title="라이트/다크">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- 홈 -->
+    <section class="view" id="view-home">
+      <div class="hero card">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">오늘 복습할 카드</p>
+            <p class="hero-num"><span id="dueCount">0</span><span class="unit">개</span></p>
+          </div>
+          <div class="ring" id="ring"><span id="ringPct">0%</span></div>
+        </div>
+
+        <div class="preset" id="presetSeg" role="tablist" aria-label="난이도 프리셋">
+          <button class="preset-btn" data-preset="mid" role="tab">중급<span>Lv.3·4</span></button>
+          <button class="preset-btn active" data-preset="upper" role="tab">중상급<span>Lv.4·5</span></button>
+          <button class="preset-btn" data-preset="pattern" role="tab">구문·패턴<span>Lv.5</span></button>
+        </div>
+        <p class="preset-desc" id="presetDesc">Lv.4·5 집중 · B2·C1 + 구동사·구문</p>
+
+        <p class="hero-sub" id="heroSub">새 카드 20개로 시작해 보세요.</p>
+        <button class="primary-btn" id="startBtn">학습 시작</button>
+        <div class="mode-pick" id="modePick">
+          <button class="mode-chip active" data-mode="quiz">🔤 4지선다</button>
+          <button class="mode-chip" data-mode="blank">✍️ 빈칸</button>
+          <button class="mode-chip" data-mode="order">🧩 순서</button>
+          <button class="mode-chip" data-mode="card">🃏 카드</button>
+        </div>
+        <div class="hero-actions">
+          <button class="ghost-btn" id="startWeakBtn">오답 집중</button>
+          <button class="ghost-btn" id="startNewBtn">새 카드</button>
+        </div>
+      </div>
+
+      <div class="card drill" id="drillCard">
+        <div class="drill-head">
+          <div>
+            <p class="eyebrow">구문이 안 보인다는 피드백 반영</p>
+            <h2 class="drill-title">💬 회화 구문·문장 훈련</h2>
+            <p class="drill-sub" id="drillSub">Lv.5 구동사·패턴 1,000개만 몰아서</p>
+          </div>
+        </div>
+        <div class="chips-scroll drill-tags" id="drillTags"></div>
+        <div class="drill-actions">
+          <button class="drill-btn" data-drill="blank">✍️ 빈칸으로</button>
+          <button class="drill-btn" data-drill="order">🧩 순서로</button>
+          <button class="drill-btn" data-drill="quiz">🔤 뜻 맞히기</button>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="mini card"><b id="mTotal">0</b><span>외운 카드</span></div>
+        <div class="mini card"><b id="mLearning">0</b><span>학습 중</span></div>
+        <div class="mini card"><b id="mStreak">0</b><span>연속 학습</span></div>
+      </div>
+
+      <h2 class="section-title">단계별 진도 <button class="link-btn" data-goto="stats">전체</button></h2>
+      <div class="levels" id="levelList"></div>
+
+      <div class="card weak-card" id="weakCard">
+        <div class="weak-head">
+          <div><p class="eyebrow">오답 노트</p><p class="weak-num"><span id="weakCount">0</span>개 카드가 기다려요</p></div>
+          <button class="small-btn" id="weakGo">복습</button>
+        </div>
+        <div class="weak-chips" id="weakChips"></div>
+      </div>
+
+      <p class="foot-note" id="footNote">수록 6,000개 · 단어 5,000 + 구동사·구문 1,000</p>
+    </section>
+
+    <!-- 학습 -->
+    <section class="view" id="view-study" hidden>
+      <div class="study-bar">
+        <button class="icon-btn back" id="studyBack" aria-label="나가기">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="progress"><span id="studyProgress"></span></div>
+        <span class="counter" id="studyCounter">0/0</span>
+        <button class="speed-btn" id="speedBtn" aria-label="듣기 속도 전환">🔊 1.0x</button>
+      </div>
+
+      <div class="mode-switch" id="modeSwitch">
+        <button class="seg active" data-mode="quiz">4지선다</button>
+        <button class="seg" data-mode="blank">빈칸</button>
+        <button class="seg" data-mode="order">순서</button>
+        <button class="seg" data-mode="card">카드</button>
+      </div>
+
+      <!-- 4지선다 -->
+      <div id="quizBox">
+        <div class="quiz-card card" id="quizCard">
+          <p class="quiz-tag" id="quizTag">이 단어의 뜻은?</p>
+          <p class="srs-pill" id="quizSrs">새 카드</p>
+          <div class="quiz-word-row">
+            <h3 class="quiz-word" id="quizWord">word</h3>
+            <button class="speak" id="quizSpeak" aria-label="발음 듣기">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 9h3l4-4v14l-4-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <p class="quiz-phon" id="quizPhon"></p>
+          <div class="options" id="quizOptions"></div>
+        </div>
+
+        <!-- 빈칸 채우기 -->
+        <div class="quiz-card card" id="blankCard" hidden>
+          <p class="quiz-tag" id="blankTag">빈칸에 맞는 표현은?</p>
+          <p class="srs-pill" id="blankSrs">새 카드</p>
+          <p class="blank-sentence" id="blankSentence"></p>
+          <p class="blank-ko" id="blankKo"></p>
+          <div class="blank-tools">
+            <button class="speak" id="blankSpeak" aria-label="문장 듣기">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 9h3l4-4v14l-4-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <span class="blank-hint-note" id="blankNote">보기 4개 중 문맥에 맞는 것</span>
+          </div>
+          <div class="options" id="blankOptions"></div>
+        </div>
+
+        <!-- 문장 순서 -->
+        <div class="quiz-card card" id="orderCard" hidden>
+          <p class="quiz-tag" id="orderTag">순서대로 타일을 눌러 문장을 만드세요</p>
+          <p class="srs-pill" id="orderSrs">새 카드</p>
+          <p class="order-ko" id="orderKo"></p>
+          <div class="answer-row" id="answerRow"></div>
+          <div class="tile-pool" id="tilePool"></div>
+          <div class="order-tools">
+            <button class="ghost-btn small" id="orderHint">💡 힌트</button>
+            <button class="ghost-btn small" id="orderClear">↺ 지우기</button>
+            <button class="primary-btn small" id="orderCheck">확인</button>
+          </div>
+        </div>
+
+        <div class="feedback card" id="feedback" hidden></div>
+      </div>
+
+      <!-- 플래시카드 -->
+      <div id="cardBox" hidden>
+        <button class="speak fc-float" id="fcSpeak" aria-label="발음 듣기">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 9h3l4-4v14l-4-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="flip card" id="flipCard">
+          <div class="flip-inner">
+            <div class="flip-face front">
+              <p class="pos" id="fcPos"></p>
+              <h3 class="fc-word" id="fcWord">word</h3>
+              <p class="fc-phon" id="fcPhon"></p>
+              <p class="fc-srs" id="fcSrs"></p>
+              <p class="hint">탭해서 뜻 보기</p>
+            </div>
+            <div class="flip-face back">
+              <p class="pos" id="fcPos2"></p>
+              <p class="fc-meaning" id="fcMeaning"></p>
+              <div class="fc-ex">
+                <p class="ex-en" id="fcExEn"></p>
+                <p class="ex-ko" id="fcExKo"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grade-row" id="gradeRow">
+          <button class="grade bad" data-g="0">몰라요</button>
+          <button class="grade mid" data-g="1">애매해요</button>
+          <button class="grade good" data-g="2">알아요</button>
+        </div>
+      </div>
+
+      <!-- 세션 결과 -->
+      <div class="result card" id="resultBox" hidden>
+        <p class="eyebrow">세션 완료</p>
+        <p class="result-num"><span id="rCorrect">0</span>/<span id="rTotal">0</span></p>
+        <p class="result-sub" id="rSub"></p>
+        <div class="result-list" id="rList"></div>
+        <button class="primary-btn" id="rAgain">한 번 더</button>
+        <button class="ghost-btn wide" id="rHome">홈으로</button>
+      </div>
+    </section>
+
+    <!-- 단어장 -->
+    <section class="view" id="view-list" hidden>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" width="18" height="18" class="search-icon"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input id="searchInput" type="search" placeholder="단어·표현 또는 뜻 검색 (예: take, 퇴근)" autocomplete="off" enterkeyhint="search">
+        <button class="clear-btn" id="searchClear" hidden aria-label="지우기">✕</button>
+      </div>
+      <div class="chips-scroll" id="filters">
+        <button class="chip active" data-f="all">전체</button>
+        <button class="chip" data-f="l1">Lv.1</button>
+        <button class="chip" data-f="l2">Lv.2</button>
+        <button class="chip" data-f="l3">Lv.3</button>
+        <button class="chip" data-f="l4">Lv.4</button>
+        <button class="chip" data-f="l5">Lv.5</button>
+        <button class="chip" data-f="star">⭐ 북마크</button>
+        <button class="chip" data-f="weak">오답</button>
+        <button class="chip" data-f="due">복습 대기</button>
+      </div>
+      <p class="list-meta" id="listMeta">0개</p>
+      <div class="word-list" id="wordList"></div>
+      <button class="more-btn" id="moreBtn" hidden>더 보기</button>
+    </section>
+
+    <!-- 통계/설정 -->
+    <section class="view" id="view-stats" hidden>
+      <div class="card">
+        <h2 class="card-title">전체 진도</h2>
+        <div class="big-progress"><span id="totalBar"></span></div>
+        <p class="muted" id="totalText">0 / 0</p>
+        <div class="week" id="weekChart"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">단계별 마스터율</h2>
+        <div id="statsLevels"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">학습 설정</h2>
+        <div class="setting-row">
+          <div><b>난이도 프리셋</b><span class="muted">새 카드를 뽑는 범위</span></div>
+          <div class="seg-mini" id="presetPick">
+            <button data-preset="mid">중급</button>
+            <button data-preset="upper" class="active">중상급</button>
+            <button data-preset="pattern">구문</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>하루 새 카드</b><span class="muted">처음 보는 카드 개수</span></div>
+          <div class="stepper">
+            <button id="newMinus">−</button><span id="newVal">20</span><button id="newPlus">+</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>퀴즈 방식</b><span class="muted">학습 시작 때 기본으로</span></div>
+          <div class="seg-mini" id="modePick2">
+            <button data-mode="quiz" class="active">4지선다</button>
+            <button data-mode="blank">빈칸</button>
+            <button data-mode="order">순서</button>
+            <button data-mode="card">카드</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>퀴즈 방향</b><span class="muted">4지선다 문제 방식</span></div>
+          <div class="seg-mini" id="dirPick">
+            <button data-dir="w2m" class="active">단어→뜻</button>
+            <button data-dir="m2w">뜻→단어</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>듣기 속도</b><span class="muted">발음 재생 속도</span></div>
+          <div class="seg-mini" id="speedPick">
+            <button data-speed="1" class="active">🔊 보통</button>
+            <button data-speed="0.75">🐢 천천히</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>기본 단계</b><span class="muted">프리셋 대신 한 단계만</span></div>
+          <select id="levelPick" class="select">
+            <option value="0">프리셋 사용</option>
+            <option value="1">Lv.1 A1 회화 코어</option>
+            <option value="2">Lv.2 A2 일상 회화</option>
+            <option value="3">Lv.3 B1·B2 필수</option>
+            <option value="4">Lv.4 B2·C1 상급</option>
+            <option value="5">Lv.5 구동사·구문</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div><b>초급 Lv.1·2 포함</b><span class="muted">끄면 왕기초는 건너뜁니다</span></div>
+          <button class="toggle" id="basicToggle" role="switch" aria-checked="false" aria-label="초급 Lv.1·2 포함"><i></i></button>
+        </div>
+        <p class="mix-note" id="mixNote">중상급 · Lv.4 60% · Lv.5 25% · Lv.3 상위 15%</p>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">백업 · 복원</h2>
+        <p class="muted small">학습 기록은 이 기기 브라우저에 저장됩니다. 기기를 바꾸면 아래 파일로 옮기세요.</p>
+        <div class="btn-row">
+          <button class="ghost-btn" id="exportBtn">JSON 내보내기</button>
+          <button class="ghost-btn" id="importBtn">불러오기</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+        <button class="danger-btn" id="resetBtn">학습 기록 초기화</button>
+      </div>
+
+      <div class="card about">
+        <h2 class="card-title">수록 기준 · 어휘 사다리</h2>
+        <div class="basis-body" id="aboutList"></div>
+        <p class="muted small" id="aboutFoot"></p>
+      </div>
+      <p class="foot-note">만든 사람 · 신범수님의 Pickle</p>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab active" data-tab="home">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <span>홈</span>
+    </button>
+    <button class="tab" data-tab="list">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 5h14M5 12h14M5 19h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>단어장</span>
+    </button>
+    <button class="tab" data-tab="stats">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 19V9m5 10V5m5 14v-7m5 7V8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>통계</span>
+    </button>
+  </nav>
+
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet-grip"></div>
+    <div id="sheetBody"></div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+</div>
+
+<script src="data/lv1.js"></script>
+<script src="data/lv5.js"></script>
+<script src="data/meta.js"></script>
+<script src="app.js"></script>
+<script>
+  // 나머지 레벨은 첫 화면 이후에 받아 둔다 (초기 로딩 1초 유지)
+  addEventListener('load', function () {
+    setTimeout(function () {
+      ['data/lv2.js', 'data/lv3.js', 'data/lv4.js'].forEach(function (src) {
+        var s = document.createElement('script');
+        s.src = src; s.async = true;
+        s.onload = function () { if (window.__afterData) window.__afterData(); };
+        document.head.appendChild(s);
+      });
+    }, 60);
+  });
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+</script>
+</body>
+</html>
