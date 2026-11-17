@@ -1,10 +1,10 @@
-/* 회화 영어 단어장 · 6,000 SRS — service worker (GitHub Pages)
+/* 회화 영어 단어장 · 6,412 SRS — service worker (GitHub Pages)
  * - index.html(문서)과 data/*.js: network-first(+ETag 재검증) → 배포하면 다음 실행에 바로 최신본,
  *   바뀐 게 없으면 304 라 데이터도 거의 안 받는다
  * - css·아이콘 등 정적 자산: cache-first + 백그라운드 갱신 (오프라인에서도 즉시)
  * - VERSION 을 올리면 이전 버전 캐시는 activate 에서 전부 삭제
  */
-var VERSION = 'v3.6.2-gh';
+var VERSION = 'v3.7.0-gh';
 var CORE = [
   './',
   'index.html',
@@ -16,6 +16,7 @@ var CORE = [
   'data/lv3.js',
   'data/lv4.js',
   'data/lv5.js',
+  'data/lv6.js',
   'data/meta.js',
   'icon-192.png',
   'icon-512.png',

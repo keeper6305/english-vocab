@@ -1,4 +1,4 @@
-/* 회화 영어 단어장 · 6,000 SRS — v2 (빈칸 · 문장 순서 · 구문 드릴 · 난이도 프리셋) */
+/* 회화 영어 단어장 · 6,412 SRS — v3 (학습 모드별 기록·진도 + 실전 회화 통문장 Lv.6) */
 (function () {
   'use strict';
 
@@ -29,6 +29,8 @@
   var MIX_BASIC = [{ lv: 1, w: 10 }, { lv: 2, w: 15 }, { lv: 3, w: 30 }, { lv: 4, w: 35 }, { lv: 5, w: 10 }];
 
   var MODE_LABEL = { quiz: '4지선다', blank: '빈칸 채우기', order: '문장 순서', card: '플래시카드' };
+  var MODE_ICON = { quiz: '🔤', blank: '✍️', order: '🧩', card: '🃏' };
+  var MODE_KEYS = ['quiz', 'blank', 'order', 'card'];
 
   /* 태그별 한 줄 조언 — 피드백의 "왜 이 표현"에 붙는다 */
   var TAG_TIP = {
@@ -57,7 +59,7 @@
 
   function load() {
     var base = {
-      v: 1, cards: {}, stats: {},
+      v: 1, cards: {}, stats: {}, modes: {},
       settings: { newPerDay: 20, dir: 'w2m', level: 0, theme: null, includeBasic: false, preset: 'upper', mode: 'quiz', speed: 1 },
       newDay: null, newCount: 0
     };
@@ -68,6 +70,7 @@
       var s = JSON.parse(raw);
       s.cards = s.cards || {};
       s.stats = s.stats || {};
+      s.modes = s.modes || {};
       s.settings = Object.assign(base.settings, s.settings || {});
       if (!PRESETS[s.settings.preset]) s.settings.preset = 'upper';
       if (!MODE_LABEL[s.settings.mode]) s.settings.mode = 'quiz';
@@ -103,17 +106,19 @@
   }
 
   /* ---------------- 데이터 ---------------- */
-  var LEVELS = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+  var LEVELS = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
   var META = window.VOCAB_META || { levels: {} };
   var LEVEL_META = {
     1: { name: 'A1 회화 코어', sub: '기초 1,000 — A1 전체 + A2 상위' },
     2: { name: 'A2 일상 회화', sub: '누적 2,000 — A2 + B1 시작' },
     3: { name: 'B1·B2 필수', sub: '누적 3,000 — B1 마무리 + B2 핵심' },
     4: { name: 'B2·C1 상급', sub: '누적 5,000 — B2 + C1, 회화 96~97%' },
-    5: { name: '구동사·구문·연결어', sub: '구동사 · 회화 구문 · 고급 연결어 · 비즈니스 청크 1,000' }
+    5: { name: '구동사·구문·연결어', sub: '구동사 · 회화 구문 · 고급 연결어 · 비즈니스 청크 1,000' },
+    6: { name: '실전 회화 문장', sub: '상황별 통문장 — 묻고 답하는 문장을 통째로' }
   };
   var INDEX = {};
-  var LOADED = { 1: true, 2: false, 3: false, 4: false, 5: true };
+  var BLANK_GLOSS = {};
+  var LOADED = { 1: true, 2: false, 3: false, 4: false, 5: true, 6: false };
 
   function ingest(level) {
     var arr = window['VOCAB_LV' + level] || [];
@@ -123,6 +128,7 @@
       if (!INDEX[k]) INDEX[k] = { c: c, lv: level };
       c._lv = level;
       c._i = i;
+      if (c.b && !BLANK_GLOSS[c.b.toLowerCase()]) BLANK_GLOSS[c.b.toLowerCase()] = c.bm || '';
     });
     LOADED[level] = true;
     if (META.levels) {
@@ -141,9 +147,10 @@
   if (window.VOCAB_LV2) ingest(2);
   if (window.VOCAB_LV3) ingest(3);
   if (window.VOCAB_LV4) ingest(4);
+  if (window.VOCAB_LV6) ingest(6);
 
   function allCards() {
-    return LEVELS[1].concat(LEVELS[2], LEVELS[3], LEVELS[4], LEVELS[5]);
+    return LEVELS[1].concat(LEVELS[2], LEVELS[3], LEVELS[4], LEVELS[5], LEVELS[6]);
   }
 
   function deckTotal() {
@@ -287,7 +294,7 @@
   function stats() {
     var total = 0, mastered = 0, learning = 0, perLevel = {};
     Object.keys(LEVELS).forEach(function (lv) {
-      perLevel[lv] = { total: LEVELS[lv].length, master: 0, learning: 0 };
+      perLevel[lv] = { total: LEVELS[lv].length, master: 0, learning: 0, studied: 0 };
     });
     allCards().forEach(function (c) {
       var r = peek(c.w);
@@ -296,8 +303,38 @@
       if (r && r.st >= MASTER_ST) { mastered++; if (pl) pl.master++; }
       else if (r && r.seen > 0) { learning++; if (pl) pl.learning++; }
     });
-    return { total: total, mastered: mastered, learning: learning, perLevel: perLevel };
+    Object.keys(perLevel).forEach(function (lv) {
+      perLevel[lv].studied = perLevel[lv].master + perLevel[lv].learning;
+    });
+    return {
+      total: total, mastered: mastered, learning: learning,
+      studied: mastered + learning, perLevel: perLevel
+    };
   }
+
+  /* ---------------- 학습 모드별 기록 ---------------- */
+  /* 오답·정답을 모드(4지선다/빈칸/순서/카드)별로 오늘·누적에 쌓는다 */
+  function bumpMode(mode, ok) {
+    var m = MODE_LABEL[mode] ? mode : 'quiz';
+    var ts = todayStats();
+    ts.by = ts.by || {};
+    var t = ts.by[m] || (ts.by[m] = { n: 0, ok: 0 });
+    t.n++; if (ok) t.ok++;
+    store.modes = store.modes || {};
+    var c = store.modes[m] || (store.modes[m] = { n: 0, ok: 0 });
+    c.n++; if (ok) c.ok++;
+  }
+
+  function modeToday(m) {
+    var ts = store.stats[todayKey()] || {};
+    return ((ts.by || {})[m]) || { n: 0, ok: 0 };
+  }
+
+  function modeAll(m) {
+    return ((store.modes || {})[m]) || { n: 0, ok: 0 };
+  }
+
+  function pctOf(ok, n) { return n ? Math.round(ok / n * 100) : 0; }
 
   function streak() {
     var n = 0;
@@ -352,14 +389,97 @@
       (drillTag === 'all' ? '구동사·회화 구문·고급 연결어·비즈니스' : drillTag + ' ' + drillPool().length + '개');
   }
 
+  /* ---------------- 실전 회화 통문장 (Lv.6) ---------------- */
+  var convTag = 'all';
+  var CONV_TAG_ORDER = ['카페·식당', '직장·업무', '회의·발표', '여행·공항', '전화·예약', '쇼핑·결제',
+    '감정·위로', '부탁·거절', '의견·반론', '스몰토크·일상', '약속·시간', '병원·몸', '교통·길찾기'];
+
+  function convTags() {
+    var comp = (META.levels && META.levels['6'] && META.levels['6'].comp) || {};
+    var have = {};
+    (LEVELS[6] || []).forEach(function (c) { have[c.t] = 1; });
+    var list = CONV_TAG_ORDER.filter(function (t) { return comp[t] || have[t]; });
+    Object.keys(comp).forEach(function (t) { if (list.indexOf(t) === -1) list.push(t); });
+    return list;
+  }
+
+  function convPool() {
+    var pool = LEVELS[6] || [];
+    if (convTag === 'all') return pool;
+    return pool.filter(function (c) { return c.t === convTag; });
+  }
+
+  function renderConv() {
+    var box = $('#convTags');
+    if (!box) return;
+    box.innerHTML = '';
+    var total = LEVELS[6].length || META.conv || 0;
+    var all = document.createElement('button');
+    all.className = 'chip' + (convTag === 'all' ? ' active' : '');
+    all.textContent = '전체 ' + total;
+    all.addEventListener('click', function () { convTag = 'all'; renderConv(); });
+    box.appendChild(all);
+    var comp = (META.levels && META.levels['6'] && META.levels['6'].comp) || {};
+    convTags().forEach(function (t) {
+      var n = (LEVELS[6] || []).filter(function (c) { return c.t === t; }).length || comp[t] || 0;
+      if (!n) return;
+      var b = document.createElement('button');
+      b.className = 'chip' + (convTag === t ? ' active' : '');
+      b.textContent = t + ' ' + n;
+      b.addEventListener('click', function () { convTag = t; renderConv(); });
+      box.appendChild(b);
+    });
+    var sub = $('#convSub');
+    if (sub) sub.textContent = 'Lv.6 ' + total.toLocaleString() + '문장 · ' +
+      (convTag === 'all' ? '질문–응답 쌍 · 상황 태그 ' + convTags().length + '종' : convTag + ' ' + convPool().length + '문장');
+    var m = $('#convMine');
+    if (m) {
+      var st6 = stats().perLevel[6] || { studied: 0, master: 0 };
+      var tot6 = total || 0;
+      m.textContent = '학습 ' + st6.studied + '/' + tot6 + ' · 마스터 ' + st6.master +
+        (tot6 ? ' (' + Math.round(st6.studied / tot6 * 100) + '%)' : '');
+    }
+  }
+
+  function startConv(mode) {
+    var pool = convPool();
+    if (!pool.length) { toast('회화 문장을 아직 불러오는 중이에요'); return; }
+    var use = mode || 'blank';
+    var only = pool.filter(function (c) { return eligibleFor(c, use); });
+    if (only.length >= 5) pool = only;
+    var queue = [];
+    var used = {};
+    function push(c, kind) {
+      var k = c.w.toLowerCase();
+      if (used[k] || queue.length >= 25) return;
+      used[k] = 1;
+      queue.push({ c: c, kind: kind });
+    }
+    pool.filter(function (c) { return isDue(c.w); }).forEach(function (c) { push(c, 'due'); });
+    pool.filter(function (c) { var r = peek(c.w); return r && r.bad > 0 && r.st < MASTER_ST; }).forEach(function (c) { push(c, 'weak'); });
+    shuffle(pool.slice()).forEach(function (c) { push(c, 'conv'); });
+    S = {
+      queue: queue, i: 0, mode: 'conv', answers: [], correct: 0, quizDir: 'm2w',
+      lastMode: use,
+      label: '회화 문장' + (convTag === 'all' ? '' : ' · ' + convTag) + ' · ' + MODE_LABEL[use]
+    };
+    uiMode = use;
+    store.settings.mode = use;
+    save();
+    setUiMode(uiMode);
+    showStudy(true);
+    nextCard();
+  }
+
   function presetObj() { return PRESETS[store.settings.preset] || PRESETS.upper; }
 
   function renderHome() {
     var st = stats();
     var due = dueList();
     var weak = weakList();
+    var deck = deckTotal();
     $('#dueCount').textContent = due.length;
-    var pct = Math.round(st.mastered / deckTotal() * 100);
+    var pct = deck ? Math.round(st.studied / deck * 100) : 0;
     $('#ringPct').textContent = pct + '%';
     $('#ring').style.setProperty('--p', pct);
     $('#mTotal').textContent = st.mastered;
@@ -390,17 +510,20 @@
 
     var box = $('#levelList');
     box.innerHTML = '';
-    [1, 2, 3, 4, 5].forEach(function (lv) {
+    [1, 2, 3, 4, 5, 6].forEach(function (lv) {
       var pl = st.perLevel[lv];
-      var p = pl.total ? Math.round(pl.master / pl.total * 100) : 0;
+      if (!pl) return;
+      var p = pl.total ? Math.round(pl.studied / pl.total * 100) : 0;
+      var mp = pl.total ? Math.round(pl.master / pl.total * 100) : 0;
       var row = document.createElement('button');
       row.className = 'level-row l' + lv;
       row.innerHTML =
         '<div class="lv-badge l' + lv + '">Lv.' + lv + '</div>' +
         '<div class="lv-mid"><div class="lv-name"><b>' + LEVEL_META[lv].name + '</b>' +
         '<span>' + (LEVEL_META[lv].count || pl.total) + '개' + (LEVEL_META[lv].coverage && lv <= 4 ? ' · 회화 ' + LEVEL_META[lv].coverage : '') + '</span></div>' +
-        '<div class="lv-bar"><i style="width:' + p + '%"></i></div></div>' +
-        '<span class="lv-pct">' + p + '%</span>';
+        '<div class="lv-bar"><u style="width:' + p + '%"></u><i style="width:' + mp + '%"></i></div>' +
+        '<div class="lv-sub">학습 ' + pl.studied + '/' + pl.total + ' · 마스터 ' + pl.master + '</div></div>' +
+        '<span class="lv-pct">' + p + '%<em>진도</em></span>';
       row.addEventListener('click', function () { openLevelSheet(lv); });
       box.appendChild(row);
     });
@@ -416,8 +539,38 @@
       chips.appendChild(b);
     });
     if (!weak.length) chips.innerHTML = '<span class="muted small">아직 오답이 없어요.</span>';
-    $('#footNote').textContent = '수록 ' + deckTotal().toLocaleString() + '개 · 단어 5,000(B2·C1 상급 포함) + 구동사·구문 1,000';
+    $('#footNote').textContent = '수록 ' + deckTotal().toLocaleString() + '개 · 단어 5,000 + 구동사·구문 1,000 + 실전 회화 문장 ' +
+      ((LEVELS[6] && LEVELS[6].length) || META.conv || 0).toLocaleString();
+    renderToday();
     renderDrill();
+    renderConv();
+  }
+
+  /* ---------------- 오늘의 학습 · 모드별 기록 ---------------- */
+  function renderToday() {
+    var ts = todayStats();
+    var st = stats();
+    var deck = deckTotal();
+    var n = ts.n || 0;
+    $('#tTodayN').textContent = n;
+    $('#tTodayAcc').textContent = n ? '정답률 ' + pctOf(ts.ok || 0, n) + '%' : '아직 기록 없음';
+    $('#tTodayNew').textContent = '새 카드 ' + (ts.nw || 0) + '개';
+    var box = $('#modeTable');
+    if (box) {
+      box.innerHTML = MODE_KEYS.map(function (m) {
+        var t = modeToday(m), a = modeAll(m);
+        var w = n ? Math.round(t.n / n * 100) : 0;
+        return '<div class="mode-row">' +
+          '<span class="mode-name">' + MODE_ICON[m] + ' <b>' + MODE_LABEL[m] + '</b></span>' +
+          '<span class="mode-bar"><i class="' + m + '" style="width:' + w + '%"></i></span>' +
+          '<span class="mode-today">오늘 <b>' + t.n + '</b>' + (t.n ? ' · ' + pctOf(t.ok, t.n) + '%' : '') + '</span>' +
+          '<span class="mode-all">누적 ' + a.n + '</span></div>';
+      }).join('');
+    }
+    var sp = deck ? Math.round(st.studied / deck * 100) : 0;
+    $('#todayBar').style.width = sp + '%';
+    $('#todayProg').textContent = '전체 진도 ' + st.studied.toLocaleString() + ' / ' + deck.toLocaleString() +
+      ' (' + sp + '%) · 마스터 ' + st.mastered.toLocaleString() + '개';
   }
 
   function setPreset(p) {
@@ -462,12 +615,16 @@
   $$('.drill-btn').forEach(function (b) {
     b.addEventListener('click', function () { startDrill(b.dataset.drill); });
   });
+  $$('.conv-btn').forEach(function (b) {
+    b.addEventListener('click', function () { startConv(b.dataset.conv); });
+  });
 
   /* ---------------- 세션 ---------------- */
   var S = null;
   var current = null;
   var answered = false;
   var uiMode = 'quiz';
+  var curMode = 'quiz';   /* 지금 매기고 있는 학습 모드 — 모드별 기록의 기준 */
 
   function mixWeights() {
     return store.settings.includeBasic ? MIX_BASIC : presetObj().mix;
@@ -634,6 +791,7 @@
 
   function renderQuestion(c) {
     var m = effMode(c);
+    curMode = m;
     answered = false;
     $('#feedback').hidden = true;
     $('#quizCard').hidden = m !== 'quiz';
@@ -668,7 +826,10 @@
       $('#quizPhon').textContent = c.p || '';
       $('#quizSpeak').hidden = true;
     }
-    $('#quizWord').style.fontSize = (dir === 'w2m' ? (c.w.length > 14 ? '24px' : '30px') : (c.m.length > 16 ? '22px' : '28px'));
+    var qw = $('#quizWord');
+    var longText = c._lv === 6 || c.w.length > 26 || c.m.length > 26;
+    qw.classList.toggle('sentence', longText);
+    qw.style.fontSize = longText ? '' : (dir === 'w2m' ? (c.w.length > 14 ? '24px' : '30px') : (c.m.length > 16 ? '22px' : '28px'));
     $('#quizSrs').textContent = srsInfo(c);
 
     var seenVal = {};
@@ -715,6 +876,11 @@
         ? '고른 보기 「' + picked + '」는 다른 뜻입니다. 이 카드는 「' + answer + '」.'
         : '고른 보기 「' + picked + '」의 뜻은 ' + (pickC ? '「' + pickC.m + '」' : '다른 뜻') + '입니다.';
       body += '<p class="fb-nuance">' + escapeHtml(line) + '</p>';
+    }
+    if (c._lv === 6) {
+      body += '<div class="fb-mean"><span class="pill small">' + escapeHtml(tagOf(c) || '') + '</span>' +
+        '<span class="pill small">정답 「' + escapeHtml(c.w) + '」 = ' + escapeHtml(c.m) + '</span></div>';
+      if (c.x) body += '<p class="fb-nuance">핵심: ' + escapeHtml(c.x) + '</p>';
     }
     showFeedback(ok, body, c, rr, nextDue);
     if (!ok && speakOk) speak(c.w);
@@ -772,6 +938,13 @@
   }
 
   function blankOf(c) {
+    /* Lv.6 회화 문장: 문장 자체에서 핵심 표현(c.b)을 뚫는다 */
+    if (c._lv === 6) {
+      if (!c.b) return null;
+      var hv = findIn(c.w, c.b);
+      if (!hv) return null;
+      return { pre: c.w.slice(0, hv.i), ans: hv.s, post: c.w.slice(hv.i + hv.s.length), core: c.b, conv: true };
+    }
     var e = c.e;
     if (!e) return null;
     var cands = [];
@@ -794,6 +967,28 @@
   }
 
   function blankOptions(c, bt) {
+    if (c._lv === 6) {
+      var want2 = String(bt.ans).trim().split(/\s+/).length;
+      var seenB = {};
+      seenB[String(bt.ans).toLowerCase()] = 1;
+      var cands6 = (LEVELS[6] || [])
+        .filter(function (x) { return x.b && x.w !== c.w && !seenB[x.b.toLowerCase()]; })
+        .map(function (x) {
+          var sc = (x.t === c.t ? 2 : 0) + (Math.abs(String(x.b).trim().split(/\s+/).length - want2) === 0 ? 1.5 : 0) + Math.random();
+          return { x: x, s: sc };
+        })
+        .sort(function (a, b) { return b.s - a.s; });
+      var opts6 = [bt.ans];
+      for (var j = 0; j < cands6.length && opts6.length < 4; j++) {
+        var vb = cands6[j].x.b;
+        var kb = vb.toLowerCase();
+        if (seenB[kb]) continue;
+        if (Math.abs(String(vb).trim().split(/\s+/).length - want2) > 1) continue;
+        seenB[kb] = 1;
+        opts6.push(vb);
+      }
+      return shuffle(opts6);
+    }
     var same = c._lv === 5;
     var pool = same ? (LEVELS[5] || []) : (LEVELS[c._lv] || []);
     var strip = function (s) { return String(s).toLowerCase().replace(/[^a-z' ]/g, '').trim(); };
@@ -835,10 +1030,10 @@
     var blanks = String(bt.ans).trim().split(/\s+/).map(function () { return '____'; }).join(' ');
     $('#blankSentence').innerHTML =
       escapeHtml(bt.pre) + '<span class="gap" id="blankGap">' + blanks + '</span>' + escapeHtml(bt.post);
-    $('#blankKo').textContent = c.k || '';
-    $('#blankNote').textContent = '보기 4개 중 문맥에 맞는 것';
+    $('#blankKo').textContent = c._lv === 6 ? (c.m || '') : (c.k || '');
+    $('#blankNote').textContent = c._lv === 6 ? '같은 상황에서 쓰는 표현 4개 중 문맥에 맞는 것' : '보기 4개 중 문맥에 맞는 것';
     $('#blankNote').classList.remove('hinted');
-    $('#blankSpeak').onclick = function () { speak(c.e || c.w); };
+    $('#blankSpeak').onclick = function () { speak(c._lv === 6 ? c.w : (c.e || c.w)); };
 
     var opts = blankOptions(c, bt);
     var box = $('#blankOptions');
@@ -857,7 +1052,8 @@
   function answerBlank(btn, picked, c, bt) {
     if (answered) return;
     answered = true;
-    var isAns = function (v) { return String(v).toLowerCase() === String(c.w).toLowerCase(); };
+    var target = bt.conv ? bt.ans : c.w;
+    var isAns = function (v) { return String(v).toLowerCase() === String(target).toLowerCase(); };
     var ok = isAns(picked);
     $$('#blankOptions .opt').forEach(function (b) {
       b.disabled = true;
@@ -874,16 +1070,34 @@
     var rr = peek(c.w);
     var nextDue = rr.st >= MASTER_ST ? '마스터 (60일+)' : STAGE_LABEL[rr.st];
 
-    var body = '<div class="fb-ex"><p class="en">' + escapeHtml(c.e || '') + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>';
+    var body;
+    if (c._lv === 6) {
+      body = '<div class="fb-ex"><p class="en">' + escapeHtml(bt.pre) + '<b> ' + escapeHtml(bt.ans) + ' </b>' + escapeHtml(bt.post) + '</p>' +
+        '<p class="ko">' + escapeHtml(c.m || '') + '</p></div>' +
+        '<div class="fb-ex fb-pair"><p class="en">↳ ' + escapeHtml(c.e || '') + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>' +
+        '<div class="fb-mean"><span class="pill small">정답 「' + escapeHtml(bt.ans) + '」 = ' + escapeHtml(BLANK_GLOSS[String(bt.ans).toLowerCase()] || '') + '</span>' +
+        (tagOf(c) ? '<span class="pill small">' + escapeHtml(tagOf(c)) + '</span>' : '') + '</div>' +
+        '<p class="fb-nuance">' + escapeHtml(nuance(c, bt.ans, ok ? null : picked)) + '</p>';
+      if (!ok && speakOk) speak(c.w);
+      showFeedback(ok, body, c, rr, nextDue);
+      return;
+    }
+    var bodyHtml = '<div class="fb-ex"><p class="en">' + escapeHtml(c.e || '') + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>';
     var ansC = c;
-    body += '<div class="fb-mean"><span class="pill small">정답 「' + escapeHtml(c.w) + '」 = ' + escapeHtml(ansC.m) + '</span>' +
+    bodyHtml += '<div class="fb-mean"><span class="pill small">정답 「' + escapeHtml(c.w) + '」 = ' + escapeHtml(ansC.m) + '</span>' +
       (tagOf(c) ? '<span class="pill small">' + escapeHtml(tagOf(c)) + '</span>' : '') + '</div>';
-    body += '<p class="fb-nuance">' + escapeHtml(nuance(c, c.w, ok ? null : picked)) + '</p>';
+    bodyHtml += '<p class="fb-nuance">' + escapeHtml(nuance(c, c.w, ok ? null : picked)) + '</p>';
     if (!ok && speakOk) speak(c.e || c.w);
-    showFeedback(ok, body, c, rr, nextDue);
+    showFeedback(ok, bodyHtml, c, rr, nextDue);
   }
 
   function nuance(c, ans, picked) {
+    if (c._lv === 6) {
+      var note = c.x || '';
+      var g = function (v) { return BLANK_GLOSS[String(v).toLowerCase()] || '다른 상황의 표현'; };
+      if (!picked) return '핵심: ' + note;
+      return '「' + picked + '」는 ‘' + g(picked) + '’, 이 문장엔 「' + ans + '」(‘' + g(ans) + '’)가 맞습니다. ' + note;
+    }
     var ansC = cardByW(ans) || c;
     var tip = TAG_TIP[tagOf(c)] || '';
     if (!picked) {
@@ -911,6 +1125,12 @@
   var O = null;
 
   function orderOf(c) {
+    /* Lv.6 통문장: 문장 자체를 타일로 쪼개고, 한국어 뜻을 문제로 준다 */
+    if (c._lv === 6) {
+      var st = String(c.w || '').trim().split(/\s+/).filter(Boolean);
+      if (st.length < 3 || st.length > 13) return null;
+      return { toks: st, ko: c.m || '' };
+    }
     var e = c.e;
     if (!e) return null;
     var toks = String(e).trim().split(/\s+/).filter(Boolean);
@@ -928,12 +1148,12 @@
   function renderOrder(c) {
     var od = orderOf(c);
     if (!od) { renderQuiz(c); return; }
-    O = { c: c, toks: od.toks, pool: [], placed: [], hints: 0, tries: 0 };
+    O = { c: c, toks: od.toks, ko: od.ko || c.k || '', pool: [], placed: [], hints: 0, tries: 0 };
     od.toks.forEach(function (t, i) { O.pool.push({ id: i, t: t }); });
     shuffle(O.pool);
     $('#orderTag').textContent = (tagOf(c) ? tagOf(c) + ' · ' : '') + '타일을 순서대로 눌러 문장을 만드세요';
     $('#orderSrs').textContent = srsInfo(c);
-    $('#orderKo').textContent = c.k || '';
+    $('#orderKo').textContent = O.ko;
     var g = $('#orderHint');
     g.disabled = false;
     g.textContent = '💡 힌트';
@@ -1020,21 +1240,30 @@
     var rr = peek(c.w);
     var nextDue = rr.st >= MASTER_ST ? '마스터 (60일+)' : STAGE_LABEL[rr.st];
 
-    var body = '<div class="fb-ex"><p class="en">' + escapeHtml(want) + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>';
+    var body = '<div class="fb-ex"><p class="en">' + escapeHtml(want) + '</p><p class="ko">' + escapeHtml(O.ko || '') + '</p></div>';
     body += '<div class="fb-order">' + O.toks.map(function (t) {
       return '<span class="' + (ok ? 'ok-tile' : 'ok-tile') + '">' + escapeHtml(t) + '</span>';
     }).join('') + '</div>';
+    if (c._lv === 6 && c.e) {
+      body += '<div class="fb-ex fb-pair"><p class="en">↳ ' + escapeHtml(c.e) + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>';
+    }
     if (!ok) {
       body += '<p class="fb-nuance">네 순서: ' + O.placed.map(function (t) { return escapeHtml(t.t); }).join(' ') +
         '<br>영어는 <b>' + escapeHtml(shortGrammar(c)) + '</b> 순으로 갑니다. 문장을 통째로 소리 내어 세 번 읽어보세요.</p>';
     } else {
-      body += '<p class="fb-nuance">' + escapeHtml(shortGrammar(c)) + '. ' + escapeHtml(TAG_TIP[tagOf(c)] || '') + '</p>';
+      body += '<p class="fb-nuance">' + escapeHtml(shortGrammar(c)) + '. ' +
+        escapeHtml(c._lv === 6 ? (c.x || '') : (TAG_TIP[tagOf(c)] || '')) + '</p>';
     }
     if (speakOk) speak(want);
     showFeedback(ok, body, c, rr, nextDue);
   }
 
   function shortGrammar(c) {
+    if (c._lv === 6) {
+      if (/[?]$/.test(String(c.w).trim())) return '의문문이면 조동사·의문사 → 주어 → 동사';
+      if (/^(Could|Would|Can|Will|Shall|May|Do|Did|Are|Is|Have|Let's|Let me)/i.test(c.w)) return '부탁·제안이면 조동사가 먼저';
+      return '주어 → 동사 → 나머지(장소·시간은 뒤로)';
+    }
     if (c._lv === 5 && /^(Would you mind|Could you|Do you mind|Any chance|I was wondering if|Is it okay if|Would it be okay if|Can I|Could I|May I|Do you want|How about|Why don't we|Let's)/i.test(c.w)) {
       return '상대에게 묻는 말이면 조동사·의문사가 먼저';
     }
@@ -1063,15 +1292,25 @@
   function renderFlash(c) {
     var flip = $('#flipCard');
     flip.classList.remove('flipped');
-    $('#fcWord').textContent = c.w;
-    $('#fcPhon').textContent = c.ph || '';
+    var conv = c._lv === 6;
+    var w = $('#fcWord');
+    w.textContent = conv ? c.m : c.w;
+    w.classList.toggle('sentence', !conv && c.w.length > 24);
+    $('#fcPhon').textContent = conv ? '' : (c.ph || '');
     $('#fcPos').textContent = tagOf(c) || c.p || '';
     $('#fcPos2').textContent = tagOf(c) || c.p || '';
-    $('#fcMeaning').textContent = c.m;
-    $('#fcExEn').textContent = c.e || '';
+    $('#fcMeaning').textContent = conv ? c.w : c.m;
+    var hint = $('#fcHint');
+    if (hint) hint.textContent = conv ? '탭해서 영어 문장 보기' : '탭해서 뜻 보기';
+    $('#fcExEn').textContent = conv ? (c.e ? '↳ ' + c.e : '') : (c.e || '');
     $('#fcExKo').textContent = c.k || '';
+    var note = $('#fcNote');
+    if (note) {
+      note.hidden = !conv || !c.x;
+      note.textContent = conv ? (c.x || '') : '';
+    }
     $('#fcSpeak').hidden = !speakOk;
-    $('#fcSpeak').onclick = function (e) { e.stopPropagation(); speak(c.e || c.w); };
+    $('#fcSpeak').onclick = function (e) { e.stopPropagation(); speak(conv ? c.w : (c.e || c.w)); };
     $('#fcSrs').textContent = srsInfo(c);
     $$('#gradeRow .grade').forEach(function (b) { b.disabled = false; });
     answered = false;
@@ -1104,14 +1343,17 @@
     r.t = Date.now();
     var ts = todayStats();
     ts.n++;
+    var ok = quality === 2;
+    if (ok) ts.ok++;
     if (first) {
       bumpNew();
       store.newCount++;
       store.newDay = todayKey();
+      ts.nw = (ts.nw || 0) + 1;
     }
-    var ok = quality === 2;
+    bumpMode(curMode, ok);
     if (ok) {
-      r.ok++; ts.ok++;
+      r.ok++;
       r.st = Math.min(MASTER_ST, r.st + 1);
     } else if (quality === 1) {
       r.st = Math.max(0, r.st - 1);
@@ -1177,6 +1419,7 @@
     $('#rAgain').onclick = function () {
       S = null;
       if (finished.mode === 'drill') startDrill(finished.lastMode || 'blank');
+      else if (finished.mode === 'conv') startConv(finished.lastMode || 'blank');
       else startSession(finished.mode === 'weak' ? 'weak' : 'mix');
     };
     $('#rHome').onclick = function () { S = null; showStudy(false); showTab('home'); };
@@ -1325,7 +1568,9 @@
       '</div>' +
       '<p class="sheet-phon">' + escapeHtml(c.ph || '') + '</p>' +
       '<p class="sheet-mean">' + escapeHtml(c.m) + '</p>' +
-      (c.e ? '<div class="sheet-ex"><p class="en">' + escapeHtml(c.e) + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>' : '') +
+      (c._lv === 6 && c.b ? '<p class="sheet-blank">빈칸 「' + escapeHtml(c.b) + '」 = ' + escapeHtml(c.bm || '') + '</p>' : '') +
+      (c.e ? '<div class="sheet-ex"><p class="en">' + (c._lv === 6 ? '↳ ' : '') + escapeHtml(c.e) + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>' : '') +
+      (c.x ? '<p class="sheet-note">' + escapeHtml(c.x) + '</p>' : '') +
       '<div class="sheet-meta"><span class="pill">Lv.' + c._lv + ' ' + LEVEL_META[c._lv].name + '</span>' +
       (tagOf(c) ? '<span class="pill">' + escapeHtml(tagOf(c)) + '</span>' : '') +
       (st >= MASTER_ST ? '<span class="pill master">마스터</span>' : r && r.seen ? '<span class="pill srs">' + STAGE_LABEL[st] + ' 복습</span>' : '<span class="pill">새 카드</span>') +
@@ -1339,7 +1584,7 @@
     $('#sheetBackdrop').hidden = false;
     $('#sheet').hidden = false;
     var sp = $('#shSpeak');
-    if (sp) sp.onclick = function () { speak(c.e || c.w); };
+    if (sp) sp.onclick = function () { speak(c._lv === 6 ? c.w : (c.e || c.w)); };
     $('#shStar').onclick = function () {
       var rr = rec(c.w);
       rr.star = rr.star ? 0 : 1;
@@ -1366,6 +1611,7 @@
       if (s && s.st >= MASTER_ST) r.master++;
       else if (s && s.seen) r.learning++;
     });
+    r.studied = r.master + r.learning;
     var m = (META.levels || {})[lv] || {};
     var body = $('#sheetBody');
     body.innerHTML =
@@ -1375,6 +1621,10 @@
       '<div class="stat-row" style="margin-bottom:14px"><div class="mini card"><b>' + r.master + '</b><span>마스터</span></div>' +
       '<div class="mini card"><b>' + r.learning + '</b><span>학습 중</span></div>' +
       '<div class="mini card"><b>' + (r.total - r.master - r.learning) + '</b><span>새 카드</span></div></div>' +
+      '<div class="big-progress" style="margin-bottom:6px"><span style="width:' + (r.total ? Math.round(r.studied / r.total * 100) : 0) + '%"></span></div>' +
+      '<p class="muted small" style="margin:0 0 12px">학습 진도 ' + r.studied + ' / ' + r.total + ' (' +
+      (r.total ? Math.round(r.studied / r.total * 100) : 0) + '%) · 마스터율 ' +
+      (r.total ? Math.round(r.master / r.total * 100) : 0) + '%</p>' +
       (m.basis ? '<p class="muted small" style="margin:0 0 12px">' + m.basis + '</p>' : '') +
       '<div class="sheet-actions"><button class="primary-btn" id="lvStart">이 단계 학습</button></div>';
     $('#sheetBackdrop').hidden = false;
@@ -1406,9 +1656,35 @@
   /* ---------------- 통계 ---------------- */
   function renderStats() {
     var st = stats();
-    var pct = Math.round(st.mastered / deckTotal() * 100);
+    var deck = deckTotal();
+    var pct = deck ? Math.round(st.studied / deck * 100) : 0;
+    var mpct = deck ? Math.round(st.mastered / deck * 100) : 0;
     $('#totalBar').style.width = pct + '%';
-    $('#totalText').textContent = st.mastered.toLocaleString() + ' / ' + deckTotal().toLocaleString() + '개 마스터 · ' + pct + '%';
+    $('#totalText').innerHTML = '학습 진도 <b>' + st.studied.toLocaleString() + ' / ' + deck.toLocaleString() +
+      '</b> (' + pct + '%) · 마스터 ' + st.mastered.toLocaleString() + '개 (' + mpct + '%)';
+
+    /* 오늘 · 모드별 기록 */
+    var ts = todayStats();
+    var tn = ts.n || 0;
+    var todayEl = $('#statsToday');
+    if (todayEl) {
+      todayEl.textContent = tn
+        ? '오늘 ' + tn + '문제 · 정답률 ' + pctOf(ts.ok || 0, tn) + '% · 새로 본 카드 ' + (ts.nw || 0) + '개'
+        : '오늘 기록이 아직 없어요. 한 문제만 풀어도 바로 여기에 쌓입니다.';
+    }
+    var mt = $('#statsModes');
+    if (mt) {
+      var rows = MODE_KEYS.map(function (m) {
+        var t = modeToday(m), a = modeAll(m);
+        return '<tr><td><span class="mode-ico">' + MODE_ICON[m] + '</span> ' + MODE_LABEL[m] + '</td>' +
+          '<td>' + t.n + '</td>' +
+          '<td>' + (t.n ? pctOf(t.ok, t.n) + '%' : '—') + '</td>' +
+          '<td>' + a.n + '</td>' +
+          '<td>' + (a.n ? pctOf(a.ok, a.n) + '%' : '—') + '</td></tr>';
+      }).join('');
+      mt.innerHTML = '<table class="mode-table"><thead><tr><th>학습 모드</th><th>오늘</th><th>오늘 정답률</th><th>누적</th><th>누적 정답률</th></tr></thead><tbody>' +
+        rows + '</tbody></table>';
+    }
 
     var chart = $('#weekChart');
     chart.innerHTML = '';
@@ -1431,15 +1707,19 @@
 
     var box = $('#statsLevels');
     box.innerHTML = '';
-    [1, 2, 3, 4, 5].forEach(function (lv) {
+    [1, 2, 3, 4, 5, 6].forEach(function (lv) {
       var pl = st.perLevel[lv];
-      var p = pl.total ? Math.round(pl.master / pl.total * 100) : 0;
+      if (!pl) return;
+      var p = pl.total ? Math.round(pl.studied / pl.total * 100) : 0;
+      var mp = pl.total ? Math.round(pl.master / pl.total * 100) : 0;
       var row = document.createElement('div');
       row.className = 'level-row l' + lv;
       row.style.marginBottom = '8px';
       row.innerHTML = '<div class="lv-badge l' + lv + '">Lv.' + lv + '</div>' +
-        '<div class="lv-mid"><div class="lv-name"><b>' + LEVEL_META[lv].name + '</b><span>' + pl.master + '/' + pl.total + '</span></div>' +
-        '<div class="lv-bar"><i style="width:' + p + '%"></i></div></div><span class="lv-pct">' + p + '%</span>';
+        '<div class="lv-mid"><div class="lv-name"><b>' + LEVEL_META[lv].name + '</b><span>' + pl.studied + '/' + pl.total + '</span></div>' +
+        '<div class="lv-bar"><u style="width:' + p + '%"></u><i style="width:' + mp + '%"></i></div>' +
+        '<div class="lv-sub">학습 ' + p + '% · 마스터 ' + mp + '%</div></div>' +
+        '<span class="lv-pct">' + p + '%<em>진도</em></span>';
       box.appendChild(row);
     });
 
@@ -1611,6 +1891,7 @@
     if (!confirm('학습 기록을 모두 지울까요? 되돌릴 수 없어요.')) return;
     store.cards = {};
     store.stats = {};
+    store.modes = {};
     store.newCount = 0;
     save();
     renderStats(); renderHome();
@@ -1622,6 +1903,7 @@
     if (window.VOCAB_LV2 && !LOADED[2]) ingest(2);
     if (window.VOCAB_LV3 && !LOADED[3]) ingest(3);
     if (window.VOCAB_LV4 && !LOADED[4]) ingest(4);
+    if (window.VOCAB_LV6 && !LOADED[6]) ingest(6);
     if (currentTab === 'home') renderHome();
     if (currentTab === 'stats') renderStats();
     if (currentTab === 'list') renderList();
@@ -1654,8 +1936,18 @@
       blankOf: blankOf,
       orderOf: orderOf,
       levelCounts: function () {
-        return { 1: LEVELS[1].length, 2: LEVELS[2].length, 3: LEVELS[3].length, 4: LEVELS[4].length, 5: LEVELS[5].length };
-      }
+        return { 1: LEVELS[1].length, 2: LEVELS[2].length, 3: LEVELS[3].length, 4: LEVELS[4].length, 5: LEVELS[5].length, 6: LEVELS[6].length };
+      },
+      modeStats: function () {
+        var o = {};
+        MODE_KEYS.forEach(function (m) {
+          o[m] = { today: modeToday(m).n, todayOk: modeToday(m).ok, all: modeAll(m).n };
+        });
+        return o;
+      },
+      progress: function () { return stats(); },
+      startConv: startConv,
+      setConvTag: function (t) { convTag = t; renderConv(); }
     };
   }
   paintSpeed();

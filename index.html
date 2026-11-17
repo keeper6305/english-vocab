@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>회화 영어 단어장 · 6000 SRS</title>
+<title>회화 영어 단어장 · 6412 SRS</title>
 <meta name="description" content="회화 필수 5,000단어와 구동사·회화 구문 1,000개를 4지선다·빈칸 채우기·문장 순서 맞추기·플래시카드와 간격 반복(SRS)으로 익히는 모바일 PWA.">
 <meta name="theme-color" content="#5b5bd6">
 <link rel="manifest" href="manifest.json">
@@ -21,7 +21,7 @@
       <div class="logo">6.0K</div>
       <div class="brand-text">
         <strong>회화 영어 6,000</strong>
-        <span id="brandSub">B2·C1 상급 + 구동사·구문 1,000</span>
+        <span id="brandSub">B2·C1 상급 + 구동사·구문 + 실전 회화 문장</span>
       </div>
     </div>
     <button class="icon-btn" id="themeBtn" aria-label="테마 전환" title="라이트/다크">
@@ -62,6 +62,38 @@
         </div>
       </div>
 
+      <div class="card today" id="todayCard">
+        <div class="today-head">
+          <div>
+            <p class="eyebrow">오늘 학습 기록</p>
+            <p class="today-num"><span id="tTodayN">0</span><span class="unit">문제</span></p>
+            <p class="today-acc" id="tTodayAcc">아직 기록 없음</p>
+          </div>
+          <span class="today-new" id="tTodayNew">새 카드 0개</span>
+        </div>
+        <div class="mode-table-box" id="modeTable"></div>
+        <div class="today-progress"><i id="todayBar"></i></div>
+        <p class="muted small today-prog" id="todayProg">전체 진도 0 / 6,412 (0%)</p>
+      </div>
+
+      <div class="card drill conv" id="convCard">
+        <div class="drill-head">
+          <div>
+            <p class="eyebrow">숙어만 있다는 피드백 반영</p>
+            <h2 class="drill-title">🗣️ 실전 회화 통문장</h2>
+            <p class="drill-sub" id="convSub">Lv.6 질문–응답 쌍 · 상황별</p>
+            <p class="drill-mine" id="convMine"></p>
+          </div>
+        </div>
+        <div class="chips-scroll drill-tags" id="convTags"></div>
+        <div class="drill-actions four">
+          <button class="drill-btn conv-btn" data-conv="blank">✍️ 빈칸으로</button>
+          <button class="drill-btn conv-btn" data-conv="order">🧩 순서로</button>
+          <button class="drill-btn conv-btn" data-conv="quiz">🔤 뜻 맞히기</button>
+          <button class="drill-btn conv-btn" data-conv="card">🃏 카드로</button>
+        </div>
+      </div>
+
       <div class="card drill" id="drillCard">
         <div class="drill-head">
           <div>
@@ -95,7 +127,7 @@
         <div class="weak-chips" id="weakChips"></div>
       </div>
 
-      <p class="foot-note" id="footNote">수록 6,000개 · 단어 5,000 + 구동사·구문 1,000</p>
+      <p class="foot-note" id="footNote">수록 6,412개 · 단어 5,000 + 구동사·구문 1,000 + 회화 문장 412</p>
     </section>
 
     <!-- 학습 -->
@@ -175,7 +207,7 @@
               <h3 class="fc-word" id="fcWord">word</h3>
               <p class="fc-phon" id="fcPhon"></p>
               <p class="fc-srs" id="fcSrs"></p>
-              <p class="hint">탭해서 뜻 보기</p>
+              <p class="hint" id="fcHint">탭해서 뜻 보기</p>
             </div>
             <div class="flip-face back">
               <p class="pos" id="fcPos2"></p>
@@ -184,6 +216,7 @@
                 <p class="ex-en" id="fcExEn"></p>
                 <p class="ex-ko" id="fcExKo"></p>
               </div>
+              <p class="fc-note" id="fcNote" hidden></p>
             </div>
           </div>
         </div>
@@ -219,6 +252,7 @@
         <button class="chip" data-f="l3">Lv.3</button>
         <button class="chip" data-f="l4">Lv.4</button>
         <button class="chip" data-f="l5">Lv.5</button>
+        <button class="chip" data-f="l6">Lv.6 회화</button>
         <button class="chip" data-f="star">⭐ 북마크</button>
         <button class="chip" data-f="weak">오답</button>
         <button class="chip" data-f="due">복습 대기</button>
@@ -235,6 +269,12 @@
         <div class="big-progress"><span id="totalBar"></span></div>
         <p class="muted" id="totalText">0 / 0</p>
         <div class="week" id="weekChart"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">학습 모드별 기록</h2>
+        <p class="muted small" id="statsToday">오늘 기록이 아직 없어요.</p>
+        <div id="statsModes"></div>
       </div>
 
       <div class="card">
@@ -290,6 +330,7 @@
             <option value="3">Lv.3 B1·B2 필수</option>
             <option value="4">Lv.4 B2·C1 상급</option>
             <option value="5">Lv.5 구동사·구문</option>
+            <option value="6">Lv.6 실전 회화 문장</option>
           </select>
         </div>
         <div class="setting-row">
@@ -350,7 +391,7 @@
   // 나머지 레벨은 첫 화면 이후에 받아 둔다 (초기 로딩 1초 유지)
   addEventListener('load', function () {
     setTimeout(function () {
-      ['data/lv2.js', 'data/lv3.js', 'data/lv4.js'].forEach(function (src) {
+      ['data/lv2.js', 'data/lv3.js', 'data/lv4.js', 'data/lv6.js'].forEach(function (src) {
         var s = document.createElement('script');
         s.src = src; s.async = true;
         s.onload = function () { if (window.__afterData) window.__afterData(); };

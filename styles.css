@@ -149,7 +149,7 @@ main { flex: 1; padding: 6px 16px 20px; }
 .ring::after {
   content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--bg-elev);
 }
-.ring span { position: relative; font-size: 12.5px; font-weight: 800; color: var(--accent); }
+.ring span { position: relative; z-index: 1; font-size: 12.5px; font-weight: 800; color: var(--accent); }
 
 .primary-btn {
   width: 100%; border: 0; border-radius: 14px;
@@ -637,3 +637,64 @@ main { flex: 1; padding: 6px 16px 20px; }
 /* 학습 화면 하단 여유 (고정 탭바에 가리지 않게) */
 #view-study { padding-bottom: 12px; }
 .feedback { margin-bottom: 8px; }
+
+/* ============ v3: 학습 모드별 기록 · 진도 · 실전 회화 문장 ============ */
+
+/* 오늘 학습 카드 */
+.today { padding: 15px 14px 13px; }
+.today-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.today-num { margin: 2px 0 0; font-size: 27px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+.today-num .unit { font-size: 13px; font-weight: 700; color: var(--text-dim); margin-left: 3px; letter-spacing: 0; }
+.today-acc { margin: 3px 0 0; font-size: 12px; color: var(--text-soft); font-weight: 600; }
+.today-new { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 99px; padding: 5px 10px; }
+.mode-table-box { display: flex; flex-direction: column; gap: 6px; margin-top: 11px; }
+.mode-row { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-soft); }
+.mode-name { flex: 0 0 auto; min-width: 84px; white-space: nowrap; }
+.mode-name b { font-weight: 700; color: var(--text); }
+.mode-bar { flex: 1 1 auto; min-width: 24px; height: 5px; background: var(--bg-soft); border-radius: 99px; overflow: hidden; }
+.mode-bar i { display: block; height: 100%; border-radius: 99px; background: var(--accent); transition: width .35s ease; }
+.mode-bar i.blank { background: var(--ok); }
+.mode-bar i.order { background: var(--warn); }
+.mode-bar i.card { background: var(--accent-2); }
+.mode-today { flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mode-today b { color: var(--text); }
+.mode-all { flex: 0 0 auto; min-width: 48px; text-align: right; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.today-progress { height: 8px; background: var(--bg-soft); border-radius: 99px; overflow: hidden; margin-top: 12px; }
+.today-progress i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .45s ease; }
+.today-prog { margin: 6px 0 0; }
+
+/* 단계별 진도: 학습(연한) + 마스터(진한) 2중 바 */
+.lv-bar { position: relative; }
+.lv-bar u { display: block; position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); opacity: .3; border-radius: 99px; transition: width .4s ease; }
+.level-row.l2 .lv-bar u { background: var(--ok); }
+.level-row.l3 .lv-bar u { background: var(--warn); }
+.level-row.l4 .lv-bar u { background: var(--bad); }
+.level-row.l5 .lv-bar u { background: var(--accent-2); }
+.lv-bar i { position: relative; }
+.lv-sub { margin-top: 4px; font-size: 10.5px; color: var(--text-dim); }
+.lv-pct { text-align: right; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.lv-pct em { display: block; font-size: 9.5px; font-style: normal; font-weight: 600; color: var(--text-dim); }
+.lv-badge.l6 { background: color-mix(in srgb, var(--accent) 16%, var(--bg-soft)); color: var(--accent); }
+.level-row.l6 .lv-bar u { background: var(--accent); opacity: .34; }
+.level-row.l6 .lv-bar i { background: var(--accent); }
+
+/* 실전 회화 문장 카드 · 긴 문장 */
+.drill.conv { background: linear-gradient(150deg, color-mix(in srgb, var(--ok) 10%, var(--bg-elev)), var(--bg-elev) 62%); }
+.drill-mine { margin: 5px 0 0; font-size: 11px; font-weight: 700; color: var(--text-soft); }
+.drill-actions.four { grid-template-columns: repeat(2, 1fr); }
+.quiz-word.sentence { font-size: 19px; line-height: 1.32; letter-spacing: -.4px; font-weight: 700; }
+.fc-word.sentence { font-size: 20px; line-height: 1.32; letter-spacing: -.4px; font-weight: 700; word-break: keep-all; }
+.fc-note { margin: 10px 0 0; font-size: 12px; color: var(--text-dim); line-height: 1.45; text-align: left; width: 100%; }
+.fb-ex.fb-pair { padding-top: 7px; border-top: 1px dashed var(--line); }
+.fb-ex.fb-pair .en { color: var(--text-soft); font-weight: 600; }
+.sheet-blank { margin: 8px 0 0; font-size: 12.5px; color: var(--accent); font-weight: 600; }
+.sheet-note { margin: 10px 0 0; font-size: 12.5px; color: var(--text-soft); line-height: 1.5; }
+.word-item .wi-word { white-space: nowrap; }
+
+/* 통계: 모드별 표 */
+.mode-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+.mode-table th { text-align: right; font-size: 10.5px; font-weight: 700; color: var(--text-dim); padding: 0 0 6px; }
+.mode-table th:first-child { text-align: left; }
+.mode-table td { text-align: right; padding: 8px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; color: var(--text-soft); }
+.mode-table td:first-child { text-align: left; color: var(--text); font-weight: 700; }
+.mode-ico { font-size: 12px; }
