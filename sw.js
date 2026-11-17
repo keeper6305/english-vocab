@@ -4,7 +4,7 @@
  * - css·아이콘 등 정적 자산: cache-first + 백그라운드 갱신 (오프라인에서도 즉시)
  * - VERSION 을 올리면 이전 버전 캐시는 activate 에서 전부 삭제
  */
-var VERSION = 'v3.7.0-gh';
+var VERSION = 'v3.7.1-gh';
 var CORE = [
   './',
   'index.html',
@@ -104,7 +104,10 @@ self.addEventListener('fetch', function (e) {
     e.respondWith(networkFirst(req, 'index.html'));
     return;
   }
-  if (/\/data\/[^/]+\.js$/.test(path) || /\.json$/.test(path) || /\/sw\.js$/.test(path)) {
+  /* 문서와 같은 세대여야 하는 app.js·styles.css 도 네트워크 우선 — 새 index.html + 예전 app.js 로
+     화면이 어긋나는 것을 막는다 (둘 다 작아서 비용이 경미) */
+  if (/\/data\/[^/]+\.js$/.test(path) || /\.json$/.test(path) || /\/sw\.js$/.test(path) ||
+      /\/(app|styles)\.(js|css)$/.test(path)) {
     e.respondWith(networkFirst(req, req));
     return;
   }
