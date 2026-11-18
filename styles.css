@@ -50,12 +50,20 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
-    "Malgun Gothic", "Segoe UI", Roboto, system-ui, sans-serif;
+    "Noto Sans KR", "SamsungOne", "Malgun Gothic", "Segoe UI", Roboto, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
   font-size: 15px;
   line-height: 1.45;
+  word-break: keep-all;          /* 한글 단어가 중간에서 끊기지 않게 */
+  overflow-wrap: anywhere;       /* 긴 영어·주소는 필요할 때만 끊는다 */
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   overscroll-behavior-y: none;
+}
+
+/* 발음기호(IPA)는 전용 글괴으로 — 일부 기기에서 글자가 네모로 나오는 것을 막는다 */
+.quiz-phon, .sheet-phon, .fb-phon {
+  font-family: "Noto Sans", "DejaVu Sans", "Segoe UI", Roboto, system-ui, sans-serif;
 }
 
 #app {
@@ -348,6 +356,7 @@ main { flex: 1; padding: 6px 16px 20px; }
 .chips-scroll {
   display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
   scrollbar-width: none; -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch; scroll-padding-right: 12px;
 }
 .chips-scroll::-webkit-scrollbar { display: none; }
 .chip {
@@ -367,6 +376,14 @@ main { flex: 1; padding: 6px 16px 20px; }
 .wi-top { display: flex; align-items: center; gap: 6px; }
 .wi-word { font-size: 15px; font-weight: 700; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wi-pos { font-size: 10.5px; color: var(--text-dim); border: 1px solid var(--line); border-radius: 5px; padding: 1px 4px; flex: 0 0 auto; }
+.imp-badge {
+  flex: 0 0 auto; font-size: 9.5px; font-weight: 800; line-height: 1;
+  padding: 3px 6px; border-radius: 6px; letter-spacing: -.1px;
+  background: var(--accent-soft); color: var(--accent); white-space: nowrap;
+}
+.imp-badge.hot { background: var(--warn-soft); color: var(--warn); }
+.pill.imp { background: var(--accent-soft); color: var(--accent); }
+.pill.imp.hot { background: var(--warn-soft); color: var(--warn); }
 .wi-mean { font-size: 12.5px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .wi-state { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: 0 0 8px; }
 .wi-state.s1 { background: var(--warn); }
@@ -715,20 +732,21 @@ main { flex: 1; padding: 6px 16px 20px; }
 .resume-acts .primary-btn, .resume-acts .ghost-btn { white-space: nowrap; padding: 8px 12px; font-size: 12.5px; }
 
 /* 홈 도구 카드 */
-.tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 12px; }
+.tool-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 12px; }
 .tool-card {
   display: flex; align-items: center; gap: 9px; text-align: left;
   background: var(--bg-elev); border: 1px solid var(--line); border-radius: 15px;
   padding: 12px 12px; cursor: pointer; color: var(--text);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow); min-width: 0; overflow: hidden;
 }
 .tool-card:active { transform: scale(.99); }
-.tool-card.speak { border-bottom: 2px solid var(--ok); }
-.tool-card.chat { border-bottom: 2px solid var(--accent); }
-.tool-ico { font-size: 22px; line-height: 1; }
+/* .speak 은 학습 화면의 원형 듣기 버튼 클래스다 — 도구 카드는 t-speak / t-chat 으로 따로 쓴다 */
+.tool-card.t-speak { border-bottom: 2px solid var(--ok); }
+.tool-card.t-chat { border-bottom: 2px solid var(--accent); }
+.tool-ico { font-size: 22px; line-height: 1; flex: 0 0 auto; }
 .tool-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tool-txt b { font-size: 13px; letter-spacing: -.2px; }
-.tool-txt span { font-size: 10.5px; color: var(--text-dim); }
+.tool-txt b { font-size: 13px; letter-spacing: -.2px; word-break: keep-all; overflow-wrap: anywhere; }
+.tool-txt span { font-size: 10.5px; color: var(--text-dim); word-break: keep-all; overflow-wrap: anywhere; }
 
 /* 예문 듣기 */
 .ex-say {

@@ -122,11 +122,11 @@
       </div>
 
       <div class="tool-row">
-        <button class="tool-card speak" id="goSpeak">
+        <button class="tool-card t-speak" id="goSpeak">
           <span class="tool-ico">🗣️</span>
           <span class="tool-txt"><b>말하기·발음 교정</b><span>따라 말하면 단어별 채점</span></span>
         </button>
-        <button class="tool-card chat" id="goChat">
+        <button class="tool-card t-chat" id="goChat">
           <span class="tool-ico">💬</span>
           <span class="tool-txt"><b>AI 회화방</b><span>주제별 대화 + 문장 교정</span></span>
         </button>
@@ -454,6 +454,13 @@
             <button data-n="5">5</button>
             <button data-n="10" class="active">10</button>
             <button data-n="15">15</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>출제 순서</b><span class="muted">새 카드·드릴을 고르는 순서</span></div>
+          <div class="seg-mini" id="orderPick">
+            <button data-order="imp" class="active">중요도 순</button>
+            <button data-order="random">랜덤</button>
           </div>
         </div>
         <div class="setting-row">

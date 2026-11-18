@@ -1,4 +1,4 @@
-/* 회화 영어 단어장 · 6,412 SRS — v3.8
+/* 회화 영어 단어장 · 6,412 SRS — v3.9
  * - 한 문제마다 즉시 저장(중간에 나가도 푼 만큼 반영) + 이어서 풀기
  * - 모든 학습 세트 10문제
  * - 예문 듣기(TTS, 0.75x/1.0x)
@@ -72,7 +72,7 @@
       v: 1, cards: {}, stats: {}, modes: {}, speak: [], chat: {}, session: null,
       settings: {
         newPerDay: 10, dir: 'w2m', level: 0, theme: null, includeBasic: false,
-        preset: 'upper', mode: 'quiz', speed: 1,
+        preset: 'upper', mode: 'quiz', speed: 1, order: 'imp',
         aiProvider: 'gemini', aiKey: '', aiModel: ''
       },
       newDay: null, newCount: 0
@@ -90,6 +90,7 @@
       s.settings = Object.assign(base.settings, s.settings || {});
       if (!PRESETS[s.settings.preset]) s.settings.preset = 'upper';
       if (!MODE_LABEL[s.settings.mode]) s.settings.mode = 'quiz';
+      if (s.settings.order !== 'random') s.settings.order = 'imp';
       /* 20·30개 단위를 쓰던 예전 설정은 10으로 내린다 */
       if (NEW_OPTIONS.indexOf(+s.settings.newPerDay) === -1) s.settings.newPerDay = 10;
       return s;
@@ -215,6 +216,13 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
     });
+  }
+
+  /* 회화 중요도 배지 — 데이터의 ib: 2=필수★, 1=고빈도, 0=표시 안 함 */
+  function impBadge(c) {
+    if (!c || !c.ib) return '';
+    return '<span class="imp-badge' + (c.ib === 2 ? ' hot' : '') + '">' +
+      (c.ib === 2 ? '필수★' : '고빈도') + '</span>';
   }
 
   /* ---------------- 발음 ---------------- */
@@ -541,7 +549,7 @@
     }
     pool.filter(function (c) { return isDue(c.w); }).forEach(function (c) { push(c, 'due'); });
     pool.filter(function (c) { var r = peek(c.w); return r && r.bad > 0 && r.st < MASTER_ST; }).forEach(function (c) { push(c, 'weak'); });
-    shuffle(pool.slice()).forEach(function (c) { push(c, 'conv'); });
+    orderPool(pool).forEach(function (c) { push(c, 'conv'); });
     S = {
       queue: queue, i: 0, mode: 'conv', answers: [], correct: 0, quizDir: 'm2w',
       lastMode: use,
@@ -556,6 +564,7 @@
   }
 
   function presetObj() { return PRESETS[store.settings.preset] || PRESETS.upper; }
+  function orderLabel() { return store.settings.order === 'random' ? '랜덤 출제' : '중요도 순'; }
 
   function renderHome() {
     var st = stats();
@@ -588,8 +597,8 @@
     var left = newLeft();
     var sub;
     if (due.length === 0 && left === 0) sub = '오늘 할 일을 다 끝냈어요. 내일 다시 만나요.';
-    else if (due.length === 0) sub = '새 카드 ' + left + '개 · ' + mixLabel();
-    else sub = '복습 ' + due.length + '개' + (left ? ' · 새 카드 ' + left + '개 · ' + mixLabel() : '');
+    else if (due.length === 0) sub = '새 카드 ' + left + '개 · ' + mixLabel() + ' · ' + orderLabel();
+    else sub = '복습 ' + due.length + '개' + (left ? ' · 새 카드 ' + left + '개 · ' + mixLabel() : '') + ' · ' + orderLabel();
     $('#heroSub').textContent = sub;
 
     var box = $('#levelList');
@@ -717,7 +726,12 @@
     return store.settings.includeBasic ? MIX_BASIC : presetObj().mix;
   }
 
-  /* 새 카드는 프리셋 가중치대로. hard:true는 그 레벨의 상위 60%만 (Lv.3 중상위 핵심) */
+  /* 새 카드는 프리셋 가중치대로. 배열이 이미 '회화 빈도·중요도 순'이라 앞에서부터 가져오면
+     자주 쓰는 것부터 나온다. 설정에서 '랜덤'을 고르면 예전처럼 섞는다. */
+  function orderPool(arr) {
+    return store.settings.order === 'random' ? shuffle(arr.slice()) : arr.slice();
+  }
+
   function pickNew(limit) {
     var lvPref = +store.settings.level;
     var out = [];
@@ -726,12 +740,13 @@
       if (n <= 0) return 0;
       var arr = LEVELS[lv] || [];
       if (!arr.length) return 0;
-      var cut = hard ? Math.floor(arr.length * 0.4) : 0;
-      var pool = arr.filter(function (c) {
+      /* hard: 그 단계에서 중요한 상위 60% 안에서만 (앞쪽 = 회화 빈도 상위) */
+      var top = hard ? Math.ceil(arr.length * 0.6) : arr.length;
+      var pool = arr.filter(function (c, i) {
         var r = peek(c.w);
-        return (!r || !r.seen) && !seen[c.w.toLowerCase()] && c._i >= cut;
+        return (!r || !r.seen) && !seen[c.w.toLowerCase()] && i < top;
       });
-      shuffle(pool);
+      if (store.settings.order === 'random') shuffle(pool);
       var got = pool.slice(0, n);
       got.forEach(function (c) { seen[c.w.toLowerCase()] = 1; });
       out = out.concat(got);
@@ -833,7 +848,7 @@
     }
     pool.filter(function (c) { return isDue(c.w); }).forEach(function (c) { push(c, 'due'); });
     pool.filter(function (c) { var r = peek(c.w); return r && r.bad > 0 && r.st < MASTER_ST; }).forEach(function (c) { push(c, 'weak'); });
-    shuffle(pool.slice()).forEach(function (c) { push(c, 'drill'); });
+    orderPool(pool).forEach(function (c) { push(c, 'drill'); });
     S = { queue: queue, i: 0, mode: 'drill', answers: [], correct: 0, quizDir: store.settings.dir, lastMode: mode || 'blank', label: (drillTag === 'all' ? '구문 드릴' : drillTag) + ' · ' + MODE_LABEL[mode || 'blank'] };
     uiMode = mode || 'blank';
     store.settings.mode = uiMode;
@@ -1734,7 +1749,7 @@
       });
     }
     filtered = pool;
-    $('#listMeta').textContent = pool.length.toLocaleString() + '개' + (query ? ' · "' + query + '"' : '');
+    $('#listMeta').textContent = pool.length.toLocaleString() + '개' + (query ? ' · "' + query + '"' : '') + ' · ' + orderLabel();
     var list = $('#wordList');
     list.innerHTML = '';
     if (!pool.length) {
@@ -1756,6 +1771,7 @@
       el.innerHTML =
         '<span class="wi-state ' + state + '"></span>' +
         '<div class="wi-main"><div class="wi-top"><span class="wi-word">' + escapeHtml(c.w) + '</span>' +
+        impBadge(c) +
         (tagOf(c) || c.p ? '<span class="wi-pos">' + escapeHtml(tagOf(c) || c.p) + '</span>' : '') + '</div>' +
         '<div class="wi-mean">' + escapeHtml(c.m) + '</div></div>' +
         '<button class="star ' + (r && r.star ? 'on' : '') + '" aria-label="북마크">' + (r && r.star ? '★' : '☆') + '</button>';
@@ -1818,6 +1834,7 @@
       (c.e ? '<div class="sheet-ex"><p class="en">' + (c._lv === 6 ? '↳ ' : '') + escapeHtml(c.e) + '</p><p class="ko">' + escapeHtml(c.k || '') + '</p></div>' : '') +
       (c.x ? '<p class="sheet-note">' + escapeHtml(c.x) + '</p>' : '') +
       '<div class="sheet-meta"><span class="pill">Lv.' + c._lv + ' ' + LEVEL_META[c._lv].name + '</span>' +
+      (c.ib ? '<span class="pill imp' + (c.ib === 2 ? ' hot' : '') + '">' + (c.ib === 2 ? '필수★ 회화 우선' : '고빈도') + '</span>' : '') +
       (tagOf(c) ? '<span class="pill">' + escapeHtml(tagOf(c)) + '</span>' : '') +
       (st >= MASTER_ST ? '<span class="pill master">마스터</span>' : r && r.seen ? '<span class="pill srs">' + STAGE_LABEL[st] + ' 복습</span>' : '<span class="pill">새 카드</span>') +
       (r && r.bad ? '<span class="pill">오답 ' + r.bad + '회</span>' : '') +
@@ -1976,6 +1993,7 @@
     });
 
     $$('#newPick button').forEach(function (b) { b.classList.toggle('active', +b.dataset.n === +store.settings.newPerDay); });
+    $$('#orderPick button').forEach(function (b) { b.classList.toggle('active', b.dataset.order === store.settings.order); });
     $$('#dirPick button').forEach(function (b) { b.classList.toggle('active', b.dataset.dir === store.settings.dir); });
     $('#levelPick').value = String(store.settings.level);
     var tg = $('#basicToggle');
@@ -2084,6 +2102,15 @@
       $$('#newPick button').forEach(function (x) { x.classList.toggle('active', x === b); });
       save();
       renderHome();
+    });
+  });
+  $$('#orderPick button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      store.settings.order = b.dataset.order === 'random' ? 'random' : 'imp';
+      $$('#orderPick button').forEach(function (x) { x.classList.toggle('active', x === b); });
+      save();
+      renderHome();
+      toast(store.settings.order === 'random' ? '무작위로 섞어서 출제해요' : '회화 빈도·중요도 순으로 출제해요');
     });
   });
   $$('#dirPick button').forEach(function (b) {
@@ -2393,7 +2420,7 @@
   function startSpeak() {
     var pool = speakPool();
     if (!pool.length) { toast('연습할 카드가 없어요'); return; }
-    var pick = shuffle(pool.slice()).slice(0, SET_SIZE);
+    var pick = orderPool(pool).slice(0, SET_SIZE);
     SP = { queue: pick, i: 0, results: [] };
     $('#speakSetup').hidden = true;
     $('#speakRun').hidden = false;
