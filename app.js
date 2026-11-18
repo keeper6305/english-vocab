@@ -1,4 +1,4 @@
-/* 회화 영어 단어장 · 6,412 SRS — v3.9
+/* 회화 영어 단어장 · 6,412 SRS — v3.9.1
  * - 한 문제마다 즉시 저장(중간에 나가도 푼 만큼 반영) + 이어서 풀기
  * - 모든 학습 세트 10문제
  * - 예문 듣기(TTS, 0.75x/1.0x)
@@ -539,17 +539,8 @@
     var use = mode || 'blank';
     var only = pool.filter(function (c) { return eligibleFor(c, use); });
     if (only.length >= 5) pool = only;
-    var queue = [];
-    var used = {};
-    function push(c, kind) {
-      var k = c.w.toLowerCase();
-      if (used[k] || queue.length >= SET_SIZE) return;
-      used[k] = 1;
-      queue.push({ c: c, kind: kind });
-    }
-    pool.filter(function (c) { return isDue(c.w); }).forEach(function (c) { push(c, 'due'); });
-    pool.filter(function (c) { var r = peek(c.w); return r && r.bad > 0 && r.st < MASTER_ST; }).forEach(function (c) { push(c, 'weak'); });
-    orderPool(pool).forEach(function (c) { push(c, 'conv'); });
+    /* 복습 대기 → 아직 안 푼 문장 → 오래 전에 본 문장 → 오늘 푼 문장 순서로 10문제 */
+    var queue = makeSet(pool, 'conv');
     S = {
       queue: queue, i: 0, mode: 'conv', answers: [], correct: 0, quizDir: 'm2w',
       lastMode: use,
@@ -596,7 +587,7 @@
 
     var left = newLeft();
     var sub;
-    if (due.length === 0 && left === 0) sub = '오늘 할 일을 다 끝냈어요. 내일 다시 만나요.';
+    if (due.length === 0 && left === 0) sub = '오늘 몫은 끝났어요 · 시작하면 안 본 카드가 이어집니다';
     else if (due.length === 0) sub = '새 카드 ' + left + '개 · ' + mixLabel() + ' · ' + orderLabel();
     else sub = '복습 ' + due.length + '개' + (left ? ' · 새 카드 ' + left + '개 · ' + mixLabel() : '') + ' · ' + orderLabel();
     $('#heroSub').textContent = sub;
@@ -732,6 +723,77 @@
     return store.settings.order === 'random' ? shuffle(arr.slice()) : arr.slice();
   }
 
+  /* ---------- 세트 짜기 — 같은 카드가 다음 세트에 또 나오지 않게 ----------
+     우선순위: ① 복습 대기(due <= now, 오래된 순)
+               ② 한 번도 안 푼 카드 — 배열 순서 = 회화 빈도·중요도 순
+               ③ 오래 전에 본 카드(가장 오래된 순 = 2회차 순환)
+               ④ 오늘 이미 푼 카드(먼저 푼 순) — 정말 풀 카드가 없을 때만
+     한 세트 안에서 같은 카드는 한 번만 담는다. */
+  function dayStart() {
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function lastTouched(r) {
+    return Math.max((r && r.t) || 0, (r && r.sp) || 0);
+  }
+
+  function touchedToday(word) {
+    var r = peek(word);
+    return !!(r && lastTouched(r) >= dayStart());
+  }
+
+  function setRank(pool) {
+    var d0 = dayStart();
+    var rows = pool.map(function (c, i) {
+      var r = peek(c.w);
+      return {
+        c: c, i: i,
+        done: r && lastTouched(r) >= d0 ? 1 : 0,
+        seen: r && r.seen ? 1 : 0,
+        t: lastTouched(r)
+      };
+    });
+    rows.sort(function (a, b) {
+      return (a.done - b.done) || (a.seen - b.seen) || (a.t - b.t) || (a.i - b.i);
+    });
+    return rows.map(function (x) { return x.c; });
+  }
+
+  /* 프리셋(또는 고른 단계)의 카드 전체 — 단계마다 중요도 위치를 정규화해 섞는다 */
+  function stagePool() {
+    var lvPref = +store.settings.level;
+    if (lvPref) return (LEVELS[lvPref] || []).slice();
+    var arr = [];
+    mixWeights().forEach(function (m) {
+      var lv = LEVELS[m.lv] || [];
+      lv.forEach(function (c) { arr.push({ c: c, p: (c._i + 0.5) / Math.max(1, lv.length), w: m.w }); });
+    });
+    arr.sort(function (a, b) { return (a.p - b.p) || (b.w - a.w); });
+    return arr.map(function (x) { return x.c; });
+  }
+
+  /* 풀 하나로 10문제 세트 짜기 — 복습 대기 먼저, 나머지는 setRank 순서 */
+  function makeSet(pool, kind) {
+    var queue = [];
+    var used = {};
+    function push(c, k) {
+      if (!c || queue.length >= SET_SIZE) return;
+      var key = String(c.w).toLowerCase();
+      if (used[key]) return;
+      used[key] = 1;
+      queue.push({ c: c, kind: k || kind });
+    }
+    pool.filter(function (c) { return isDue(c.w); })
+      .sort(function (a, b) { return peek(a.w).due - peek(b.w).due; })
+      .forEach(function (c) { push(c, 'due'); });
+    var rest = setRank(pool);
+    if (store.settings.order === 'random') rest = shuffle(rest);
+    rest.forEach(function (c) { push(c, kind); });
+    return queue;
+  }
+
   function pickNew(limit) {
     var lvPref = +store.settings.level;
     var out = [];
@@ -802,18 +864,26 @@
 
     if (mode === 'weak') {
       if (!weak.length) { toast('오답 노트가 비어 있어요'); return; }
-      weak.slice(0, SET_SIZE).forEach(function (c) { push(c, 'weak'); });
+      /* 오답이 많은 순 — 오늘 이미 다시 맞힌 카드는 뒤로 미룬다 */
+      weak.slice().sort(function (a, b) {
+        var ra = peek(a.w), rb = peek(b.w);
+        return ((touchedToday(a.w) ? 1 : 0) - (touchedToday(b.w) ? 1 : 0)) ||
+          ((rb.bad || 0) - (ra.bad || 0)) || (lastTouched(ra) - lastTouched(rb));
+      }).slice(0, SET_SIZE).forEach(function (c) { push(c, 'weak'); });
+      /* 오답이 10개보다 적으면 아직 안 푼 카드로 채운다 */
+      if (queue.length < SET_SIZE) setRank(stagePool()).forEach(function (c) { push(c, 'weak'); });
     } else if (mode === 'new') {
-      if (!news.length) { toast('오늘 새 카드를 다 채웠어요'); return; }
       news.slice(0, SET_SIZE).forEach(function (c) { push(c, 'new'); });
+      /* 오늘 몫이 10개보다 적어도 세트는 10문제 — 아직 안 푼 카드로 채운다 */
+      if (queue.length < SET_SIZE) pickNew(SET_SIZE).forEach(function (c) { push(c, 'new'); });
+      if (!queue.length) { toast('새 카드가 없어요. 모든 카드를 한 번씩은 봤어요'); return; }
     } else {
+      /* ① 오늘 복습 대기 → ② 오늘 몫 새 카드 → ③ 아직 안 푼 카드(중요도 순) → ④ 오래 전에 본 카드 */
       due.slice(0, SET_SIZE).forEach(function (c) { push(c, 'due'); });
-      news.slice(0, SET_SIZE).forEach(function (c) { push(c, 'new'); });
-      if (!queue.length) {
-        weak.slice(0, SET_SIZE).forEach(function (c) { push(c, 'weak'); });
-        if (!queue.length) pickNew(SET_SIZE).forEach(function (c) { push(c, 'new'); });
-        if (!queue.length) { toast('학습할 카드가 없어요. 모든 카드를 마스터했어요!'); return; }
-      }
+      if (queue.length < SET_SIZE) news.slice(0, SET_SIZE).forEach(function (c) { push(c, 'new'); });
+      if (queue.length < SET_SIZE) pickNew(SET_SIZE).forEach(function (c) { push(c, 'new'); });
+      if (queue.length < SET_SIZE) setRank(stagePool()).forEach(function (c) { push(c, 'review'); });
+      if (!queue.length) { toast('학습할 카드가 없어요. 모든 카드를 마스터했어요!'); return; }
       /* 한 세트는 10문제 — 복습이 먼저, 모자라면 새 카드로 채운다 */
       if (queue.length > SET_SIZE) queue = queue.slice(0, SET_SIZE);
     }
@@ -838,17 +908,8 @@
     if (!pool.length) { toast('해당 구문이 없어요'); return; }
     var only = pool.filter(function (c) { return eligibleFor(c, mode); });
     if (only.length >= 5) pool = only;
-    var queue = [];
-    var used = {};
-    function push(c, kind) {
-      var k = c.w.toLowerCase();
-      if (used[k] || queue.length >= SET_SIZE) return;
-      used[k] = 1;
-      queue.push({ c: c, kind: kind });
-    }
-    pool.filter(function (c) { return isDue(c.w); }).forEach(function (c) { push(c, 'due'); });
-    pool.filter(function (c) { var r = peek(c.w); return r && r.bad > 0 && r.st < MASTER_ST; }).forEach(function (c) { push(c, 'weak'); });
-    orderPool(pool).forEach(function (c) { push(c, 'drill'); });
+    /* 복습 대기 → 아직 안 푼 구문 → 오래 전에 본 구문 → 오늘 푼 구문 순서로 10문제 */
+    var queue = makeSet(pool, 'drill');
     S = { queue: queue, i: 0, mode: 'drill', answers: [], correct: 0, quizDir: store.settings.dir, lastMode: mode || 'blank', label: (drillTag === 'all' ? '구문 드릴' : drillTag) + ' · ' + MODE_LABEL[mode || 'blank'] };
     uiMode = mode || 'blank';
     store.settings.mode = uiMode;
@@ -1900,12 +1961,8 @@
     $('#sheet').hidden = false;
     $('#lvStart').onclick = function () {
       closeSheet();
-      var pool = items.filter(function (c) { var s = peek(c.w); return !s || (!s.seen && !s.star); }).slice(0, SET_SIZE);
-      var due = items.filter(function (c) { var s = peek(c.w); return s && s.st < MASTER_ST && s.due && s.due <= Date.now(); });
-      var queue = [];
-      var seen = {};
-      due.slice(0, SET_SIZE).forEach(function (c) { if (!seen[c.w]) { seen[c.w] = 1; queue.push({ c: c, kind: 'due' }); } });
-      pool.forEach(function (c) { if (!seen[c.w] && queue.length < SET_SIZE) { seen[c.w] = 1; queue.push({ c: c, kind: 'new' }); } });
+      /* 복습 대기 → 아직 안 푼 카드(중요도 순) → 오래 전에 본 카드 → 오늘 푼 카드 */
+      var queue = makeSet(items, 'mix');
       if (!queue.length) { toast('이 단계는 학습할 카드가 없어요'); return; }
       S = { queue: queue, i: 0, mode: 'mix', answers: [], correct: 0, quizDir: store.settings.dir, label: 'Lv.' + lv + ' · ' + MODE_LABEL[store.settings.mode] };
       uiMode = store.settings.mode;
@@ -2420,7 +2477,8 @@
   function startSpeak() {
     var pool = speakPool();
     if (!pool.length) { toast('연습할 카드가 없어요'); return; }
-    var pick = orderPool(pool).slice(0, SET_SIZE);
+    /* 어제·오늘 따라 말한 문장은 뒤로 — 아직 안 해 본 문장을 먼저 10개 */
+    var pick = makeSet(pool, 'speak').map(function (q) { return q.c; });
     SP = { queue: pick, i: 0, results: [] };
     $('#speakSetup').hidden = true;
     $('#speakRun').hidden = false;
@@ -2458,6 +2516,8 @@
     var t = speakTargetOf(c);
     var r = alignSpeech(t.en, heard);
     SP.results.push({ score: r.score, w: t.en });
+    /* 말하기도 '오늘 본 카드'로 기록 — 다음 세트에서 같은 문장이 또 나오지 않게 */
+    rec(c.w).sp = Date.now();
     store.speak = store.speak || [];
     store.speak.unshift({ w: t.en, score: r.score, at: Date.now(), type: spType });
     store.speak = store.speak.slice(0, 60);
@@ -3104,6 +3164,25 @@
         return o;
       },
       progress: function () { return stats(); },
+      /* v3.9.1 — 세트 반복 출제 점검용 */
+      startStudy: startSession,
+      startDrillNow: function (tag, mode) { drillTag = tag || 'all'; startDrill(mode || 'blank'); },
+      queueIds: function () { return S ? S.queue.map(function (q) { return q.c.w; }) : []; },
+      speakIds: function () { return SP ? SP.queue.map(function (c) { return c.w; }) : []; },
+      solve: function (ok) {
+        if (!S || S.i >= S.queue.length || answered) return false;
+        answered = true;
+        var c = S.queue[S.i].c;
+        grade(c, ok ? 2 : 0);
+        advance();
+        return true;
+      },
+      atResult: function () { return !!($('#resultBox') && !$('#resultBox').hidden); },
+      solveAll: function (ok) {
+        var guard = 0;
+        while (S && S.i < S.queue.length && guard < 60) { answered = false; this.solve(ok); guard++; }
+        return guard;
+      },
       startConv: startConv,
       setConvTag: function (t) { convTag = t; renderConv(); },
       /* v3.8 */
