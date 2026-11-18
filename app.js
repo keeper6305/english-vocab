@@ -864,10 +864,16 @@
 
     if (mode === 'weak') {
       if (!weak.length) { toast('오답 노트가 비어 있어요'); return; }
-      /* 오답이 많은 순 — 오늘 이미 다시 맞힌 카드는 뒤로 미룬다 */
+      /* ① 10분이 지나 다시 물어볼 때가 된 오답(오래된 순) → ② 오답이 많은 순
+         — 방금 틀린 카드(due 전)는 뒤로 밀려 즉시 반복되지 않는다 */
+      var nowW = Date.now();
+      function dueNow(w) {
+        var r = peek(w);
+        return !!(r && r.st < MASTER_ST && r.due && r.due <= nowW);
+      }
       weak.slice().sort(function (a, b) {
         var ra = peek(a.w), rb = peek(b.w);
-        return ((touchedToday(a.w) ? 1 : 0) - (touchedToday(b.w) ? 1 : 0)) ||
+        return ((dueNow(b.w) ? 1 : 0) - (dueNow(a.w) ? 1 : 0)) ||
           ((rb.bad || 0) - (ra.bad || 0)) || (lastTouched(ra) - lastTouched(rb));
       }).slice(0, SET_SIZE).forEach(function (c) { push(c, 'weak'); });
       /* 오답이 10개보다 적으면 아직 안 푼 카드로 채운다 */
@@ -936,7 +942,8 @@
       words: S.queue.map(function (q) { return q.c.w; }),
       kinds: S.queue.map(function (q) { return q.kind; }),
       i: (S.answeredAt != null ? S.answeredAt : S.i), mode: S.mode, label: S.label, ui: uiMode,
-      dir: S.quizDir, at: Date.now(), n: S.answers.length, ok: S.correct
+      dir: S.quizDir, at: Date.now(), n: S.answers.length, ok: S.correct,
+      lv: S.stageLv || 0, lm: S.lastMode || ''
     };
     saveNow();
   }
@@ -952,7 +959,8 @@
     if (!queue.length) { store.session = null; return false; }
     S = {
       queue: queue, i: Math.min(st.i || 0, queue.length), mode: st.mode || 'mix',
-      answers: [], correct: 0, quizDir: st.dir || store.settings.dir, label: st.label || '이어서'
+      answers: [], correct: 0, quizDir: st.dir || store.settings.dir, label: st.label || '이어서',
+      stageLv: st.lv || 0, lastMode: st.lm || ''
     };
     uiMode = MODE_LABEL[st.ui] ? st.ui : (st.ui === 'conv' ? 'blank' : (store.settings.mode || 'quiz'));
     if (st.ui === 'conv') uiMode = 'blank';
@@ -1043,7 +1051,7 @@
     var lv = c._lv;
     var answer;
     var tag = tagOf(c);
-    var fallback = uiMode === 'blank' ? '4지선다로 대쳴 · ' : uiMode === 'order' ? '4지선다로 대쳴 · ' : '';
+    var fallback = uiMode === 'blank' ? '4지선다로 대체 · ' : uiMode === 'order' ? '4지선다로 대체 · ' : '';
     if (dir === 'w2m') {
       answer = c.m;
       $('#quizTag').textContent = fallback + (c._lv === 5 ? (tag + ' · ') : '') + '이 표현의 뜻은?';
@@ -1611,11 +1619,12 @@
       note.textContent = conv ? (c.x || '') : '';
     }
     $('#fcSpeak').hidden = !speakOk;
-    $('#fcSpeak').onclick = function (e) { e.stopPropagation(); speak(conv ? c.w : (c.e || c.w)); };
+    /* 카드 앞면의 🔊 는 카드 자체(단어 / 회화 통문장)를 읽는다 — 예문은 뒤집은 뒤 버튼으로 */
+    $('#fcSpeak').onclick = function (e) { e.stopPropagation(); speak(c.w); };
     var fslow = $('#fcSpeakSlow');
     if (fslow) {
       fslow.hidden = !speakOk;
-      fslow.onclick = function (e) { e.stopPropagation(); speak(conv ? c.w : (c.e || c.w), 0.75); };
+      fslow.onclick = function (e) { e.stopPropagation(); speak(c.w, 0.75); };
     }
     var fex = $('#fcExSpeak');
     if (fex) {
@@ -1740,9 +1749,12 @@
     var finished = S;
     $('#rAgain').onclick = function () {
       S = null;
-      if (finished.mode === 'drill') startDrill(finished.lastMode || 'blank');
+      /* 「10문제 더」는 방금 끝낸 그 학습을 그대로 이어간다 (단계·구문·회화·새 카드·오답 모두) */
+      if (finished.stageLv) startLevel(finished.stageLv);
+      else if (finished.mode === 'drill') startDrill(finished.lastMode || 'blank');
       else if (finished.mode === 'conv') startConv(finished.lastMode || 'blank');
-      else startSession(finished.mode === 'weak' ? 'weak' : 'mix');
+      else if (finished.mode === 'new' || finished.mode === 'weak') startSession(finished.mode);
+      else startSession('mix');
     };
     $('#rHome').onclick = function () { S = null; showStudy(false); showTab('home'); };
     save();
@@ -1797,7 +1809,9 @@
       if (filter === 'due' && !(r && r.st < MASTER_ST && r.due && r.due <= Date.now())) return;
       if (query) {
         var q = query.toLowerCase();
-        if (c.w.toLowerCase().indexOf(q) === -1 && (c.m || '').indexOf(query) === -1) return;
+        /* 단어 · 뜻 · 예문 해석까지 — 「퇴근」처럼 예문에만 있는 말도 찾아진다 */
+        if (c.w.toLowerCase().indexOf(q) === -1 && (c.m || '').indexOf(query) === -1 &&
+            (c.k || '').indexOf(query) === -1) return;
       }
       pool.push(c);
     });
@@ -1961,15 +1975,25 @@
     $('#sheet').hidden = false;
     $('#lvStart').onclick = function () {
       closeSheet();
-      /* 복습 대기 → 아직 안 푼 카드(중요도 순) → 오래 전에 본 카드 → 오늘 푼 카드 */
-      var queue = makeSet(items, 'mix');
-      if (!queue.length) { toast('이 단계는 학습할 카드가 없어요'); return; }
-      S = { queue: queue, i: 0, mode: 'mix', answers: [], correct: 0, quizDir: store.settings.dir, label: 'Lv.' + lv + ' · ' + MODE_LABEL[store.settings.mode] };
-      uiMode = store.settings.mode;
-      setUiMode(uiMode);
-      showStudy(true);
-      nextCard();
+      startLevel(lv);
     };
+  }
+
+  /* 단계(시트) 학습 — 「10문제 더 풀기」도 같은 단계에서 이어진다 */
+  function startLevel(lv) {
+    var items = LEVELS[lv] || [];
+    /* 복습 대기 → 아직 안 푼 카드(중요도 순) → 오래 전에 본 카드 → 오늘 푼 카드 */
+    var queue = makeSet(items, 'mix');
+    if (!queue.length) { toast('이 단계는 학습할 카드가 없어요'); return false; }
+    S = {
+      queue: queue, i: 0, mode: 'level', stageLv: lv, answers: [], correct: 0,
+      quizDir: store.settings.dir, label: 'Lv.' + lv + ' · ' + MODE_LABEL[store.settings.mode]
+    };
+    uiMode = store.settings.mode;
+    setUiMode(uiMode);
+    showStudy(true);
+    nextCard();
+    return true;
   }
 
   function closeSheet() {
@@ -2490,6 +2514,7 @@
 
   function speakShow() {
     if (!SP) return;
+    if (!SP.queue.length) { speakFinish(); return; }
     if (SP.i >= SP.queue.length) { speakFinish(); return; }
     var c = SP.queue[SP.i];
     var t = speakTargetOf(c);
@@ -2501,6 +2526,8 @@
     $('#speakCounter').textContent = (SP.i + 1) + '/' + SP.queue.length;
     $('#speakProg').style.width = Math.round(SP.i / SP.queue.length * 100) + '%';
     $('#speakResult').hidden = true;
+    $('#srRetry').hidden = false;
+    $('#srNext').textContent = '다음';
     $('#micLive').textContent = '';
     $('#micHint').textContent = '마이크를 눌러 따라 말하세요';
     MIC.text = '';
@@ -2511,7 +2538,7 @@
   }
 
   function speakCheck(heard) {
-    if (!SP) return;
+    if (!SP || !SP.queue[SP.i]) return;   /* 세트를 마친 뒤 늦게 도착한 인식 결과는 버린다 */
     var c = SP.queue[SP.i];
     var t = speakTargetOf(c);
     var r = alignSpeech(t.en, heard);
@@ -2545,16 +2572,30 @@
   }
 
   function speakFinish() {
-    var n = SP ? SP.results.length : 0;
-    var avg = n ? Math.round(SP.results.reduce(function (s, x) { return s + x.score; }, 0) / n) : 0;
+    if (!SP) return;
+    var n = SP.results.length;
+    if (!n) { endSpeakRun(); return; }
+    var avg = Math.round(SP.results.reduce(function (s, x) { return s + x.score; }, 0) / n);
     var bar = $('#speakCounter');
     if (bar) bar.textContent = n + '/' + n;
     $('#speakProg').style.width = '100%';
-    $('#speakTarget').textContent = '10문제 완료 · 평균 ' + avg + '점';
+    $('#speakTarget').textContent = n + '문제 완료 · 평균 ' + avg + '점';
     $('#speakKo').textContent = '수고했어요. 점수가 낮은 단어는 단어장에서 다시 들어 보세요.';
-    $('#speakResult').hidden = true;
+    /* 결과 카드를 요약으로 다시 씀 — 「10문제 더」로 바로 다음 세트 */
+    $('#srScore').textContent = avg;
+    $('#srSub').textContent = n + '문제 평균 점수예요.';
+    $('#srWords').innerHTML = SP.results.map(function (r) {
+      var cls = r.score >= 85 ? 'ok' : r.score >= 60 ? 'near' : 'miss';
+      return '<span class="sw ' + cls + '">' + escapeHtml(r.w) + '<em>' + r.score + '</em></span>';
+    }).join('');
+    $('#srHeard').textContent = '';
+    $('#srTips').innerHTML = '<p class="tip"><i>💡</i>다음 세트는 아직 따라 말해 보지 않은 문장부터 나옵니다.</p>';
+    $('#srRetry').hidden = true;
+    $('#srNext').textContent = '10문제 더';
+    $('#speakResult').hidden = false;
+    if ($('#micHint')) $('#micHint').textContent = '한 세트를 마쳤어요 — 「10문제 더」로 이어서 하세요';
     toast('말하기 ' + n + '문제 · 평균 ' + avg + '점');
-    SP = { queue: [], i: 0, results: [] };
+    SP = { queue: [], i: 0, results: SP.results };
   }
 
   function endSpeakRun() {
@@ -2596,12 +2637,13 @@
       save();
     });
     $('#speakSkip').addEventListener('click', function () {
-      if (!SP) return;
+      if (!SP || !SP.queue.length) return;
       SP.i++;
       speakShow();
     });
     $('#micBtn').addEventListener('click', function () {
       if (!SP) return;
+      if (!SP.queue.length) { toast('한 세트를 마쳤어요 — 「10문제 더」로 이어서 하세요'); return; }
       if (!micSupport()) { toast(micErrorText('unsupported')); return; }
       if (MIC.listening) { try { MIC.rec.stop(); } catch (e) {} return; }
       listenOnce(null, function (txt) {
@@ -2617,6 +2659,7 @@
     });
     $('#srNext').addEventListener('click', function () {
       if (!SP) return;
+      if (!SP.queue.length) { startSpeak(); return; }   /* 완료 화면의 「10문제 더」 */
       SP.i++;
       speakShow();
     });
@@ -2950,9 +2993,9 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  function chatAiBuiltin(userText) {
-    var st = chatStore(chatTopic.id);
-    var script = chatTopic.script;
+  function chatAiBuiltin(topic, userText) {
+    var st = chatStore(topic.id);
+    var script = topic.script;
     var idx = Math.min(st.step || 0, script.length - 1);
     var step = script[idx];
     st.step = (st.step || 0) + 1;
@@ -3028,7 +3071,9 @@
     if (!msg) return;
     if (chatBusy) return;
     $('#chatText').value = '';
-    var st = chatStore(chatTopic.id);
+    /* 지금 주제를 붙잡는다 — 응답을 기다리는 사이 대화방을 나가도 답이 사라지지 않게 */
+    var topic = chatTopic;
+    var st = chatStore(topic.id);
     var cor = correctEnglish(msg);
     var me = { role: 'me', text: msg, corrected: cor.corrected, notes: cor.notes, natural: cor.natural, at: Date.now() };
     st.turns.push(me);
@@ -3056,16 +3101,16 @@
       chatAiLLM(msg).then(function (raw) {
         var p = parseLLM(raw);
         if (!p.en) throw new Error('empty');
-        if (p.next) chatTopic._lastNext = p.next;
+        if (p.next) topic._lastNext = p.next;
         finish({ en: p.en, ko: p.ko || '' }, p.fix);
       }).catch(function (err) {
         /* 키가 막히면 내장 엔진으로 이어서 대화한다 */
-        var r = chatAiBuiltin(msg);
+        var r = chatAiBuiltin(topic, msg);
         finish(r, '');
         toast('LLM 호출 실패(' + (err.message || err) + ') — 내장 대화로 이어갑니다');
       });
     } else {
-      setTimeout(function () { finish(chatAiBuiltin(msg), ''); }, 260);
+      setTimeout(function () { finish(chatAiBuiltin(topic, msg), ''); }, 260);
     }
   }
 
