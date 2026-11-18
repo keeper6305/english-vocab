@@ -3180,7 +3180,11 @@
       atResult: function () { return !!($('#resultBox') && !$('#resultBox').hidden); },
       solveAll: function (ok) {
         var guard = 0;
-        while (S && S.i < S.queue.length && guard < 60) { answered = false; this.solve(ok); guard++; }
+        while (S && S.i < S.queue.length && guard < 60) {
+          /* 이미 화면에서 답한 문제는 다시 채점하지 않고 '다음'만 누른 것과 같게 */
+          if (answered) advance(); else this.solve(ok);
+          guard++;
+        }
         return guard;
       },
       startConv: startConv,
