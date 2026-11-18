@@ -1188,6 +1188,88 @@ async function backTests(c) {
 /* ============================================================
  *  L. 초기화 (마지막)
  * ============================================================ */
+/* ============================================================
+ *  K2. 남은 버튼 하나하나 (힌트·지우기·애매해요·모드 전환·말하기 속도·건너뛰기·다시·weak 칩)
+ * ============================================================ */
+async function buttonSweep(c) {
+  var q = c.q, doc = c.doc;
+  /* 학습 안 모드 전환 seg */
+  await startMix(c, 'quiz');
+  q('#modeSwitch .seg[data-mode="blank"]').click(); await sleep(120);
+  var sw1 = modeNow(c) === 'blank' || modeNow(c) === 'quiz';
+  q('#modeSwitch .seg[data-mode="order"]').click(); await sleep(120);
+  q('#modeSwitch .seg[data-mode="card"]').click(); await sleep(120);
+  var sw2 = modeNow(c) === 'card';
+  q('#modeSwitch .seg[data-mode="quiz"]').click(); await sleep(120);
+  rec(c.w, '버튼:학습 중 모드 전환', sw1 && sw2 && modeNow(c) === 'quiz', 'blank→order→card→quiz');
+  await leaveStudy(c);
+
+  /* 순서 — 힌트 · 지우기 (순서로 낼 수 있는 카드만) */
+  await startDrill(c, '구동사', 'order');
+  var n0 = doc.querySelectorAll('#answerRow .tile').length;
+  q('#orderHint').click(); await sleep(120);
+  var toast1 = q('#toast').textContent;
+  var pool = doc.querySelectorAll('#tilePool .tile');
+  if (pool[0]) pool[0].click();
+  await sleep(60);
+  var placed = doc.querySelectorAll('#answerRow .tile').length;
+  q('#orderClear').click(); await sleep(100);
+  var cleared = doc.querySelectorAll('#answerRow .tile').length === 0;
+  rec(c.w, '버튼:순서 힌트', toast1.indexOf('타일') > -1, toast1);
+  rec(c.w, '버튼:순서 지우기', placed === n0 + 1 && cleared, '놓음=' + placed + ' 지움=' + cleared);
+  await leaveStudy(c);
+
+  /* 카드 — 애매해요 */
+  await startMix(c, 'card');
+  var before = Number(q('#studyCounter').textContent.split('/')[0]);
+  q('#flipCard').click(); await sleep(80);
+  q('#gradeRow .grade.mid').click(); await sleep(150);
+  var after = q('#resultBox').hidden ? Number(q('#studyCounter').textContent.split('/')[0]) : 11;
+  rec(c.w, '버튼:카드 애매해요', after === before + 1, before + '→' + after);
+  await leaveStudy(c);
+
+  /* 홈 — 오답 칩(시트) · 복습 버튼 */
+  await goHome(c);
+  var chip = q('#weakChips .weak-chip');
+  if (chip) {
+    chip.click(); await sleep(140);
+    var opened = !q('#sheet').hidden && !!q('#sheetBody .sheet-word h3');
+    q('#sheetBackdrop').click(); await sleep(100);
+    rec(c.w, '버튼:오답 칩 → 시트', opened, (q('#sheetBody .sheet-word h3') || {}).textContent || '');
+  } else {
+    rec(c.w, '버튼:오답 칩 → 시트', false, '오답 칩 없음');
+  }
+  q('#weakGo').click(); await sleep(160);
+  rec(c.w, '버튼:오답 노트 복습', !q('#view-study').hidden && c.ids().length > 0, 'n=' + c.ids().length);
+  await leaveStudy(c);
+
+  /* 말하기 — 속도 · 건너뛰기 · 다시 말하기 */
+  q('.tab[data-tab="speak"]').click(); await sleep(140);
+  q('#speakStart').click(); await sleep(160);
+  var t0 = q('#speakSpeedBtn').textContent;
+  q('#speakSpeedBtn').click(); await sleep(80);
+  var t1 = q('#speakSpeedBtn').textContent;
+  rec(c.w, '버튼:말하기 속도', t0 !== t1, t0 + '→' + t1);
+  q('#speakSpeedBtn').click(); await sleep(60);
+  var c0 = q('#speakCounter').textContent;
+  q('#speakSkip').click(); await sleep(140);
+  var c1 = q('#speakCounter').textContent;
+  rec(c.w, '버튼:말하기 건너뛰기', c0 !== c1, c0 + '→' + c1);
+  c.win.__QA.speakCheck(c.win.__QA.speakState().target);
+  await sleep(160);
+  var shown = !q('#speakResult').hidden;
+  q('#srRetry').click(); await sleep(120);
+  rec(c.w, '버튼:말하기 다시 말하기', shown && q('#speakResult').hidden, 'shown=' + shown + ' hidden=' + q('#speakResult').hidden);
+  q('#speakExit').click(); await sleep(140);
+
+  /* 회화방 — 나가기 버튼 */
+  q('.tab[data-tab="chat"]').click(); await sleep(140);
+  q('#topicGrid .topic[data-t="free"]').click(); await sleep(150);
+  q('#chatBack').click(); await sleep(150);
+  rec(c.w, '버튼:대화방 나가기', q('#chatRoom').hidden && !q('#chatTopics').hidden, 'room=' + q('#chatRoom').hidden);
+  await goHome(c);
+}
+
 async function resetTests(c) {
   var q = c.q;
   q('.tab[data-tab="stats"]').click(); await sleep(140);
@@ -1230,6 +1312,7 @@ async function run() {
   await section('list', deep, listTests);
   await section('stats', deep, statsTests);
   await section('back', deep, backTests);
+  await section('buttons', deep, buttonSweep);
   await section('reset', deep, resetTests);
   rec(deep.w, '콘솔에러 0건', errors.length === 0, errors.slice(0, 5).join(' | '));
   render();
