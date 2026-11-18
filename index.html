@@ -32,6 +32,17 @@
   <main>
     <!-- 홈 -->
     <section class="view" id="view-home">
+      <div class="card resume" id="resumeCard" hidden>
+        <div class="resume-mid">
+          <p class="eyebrow">이어서 풀기</p>
+          <p id="resumeText">풀던 문제가 남아 있어요.</p>
+        </div>
+        <div class="resume-acts">
+          <button class="primary-btn small" id="resumeBtn">이어서</button>
+          <button class="ghost-btn small" id="resumeDrop">접기</button>
+        </div>
+      </div>
+
       <div class="hero card">
         <div class="hero-top">
           <div>
@@ -48,7 +59,7 @@
         </div>
         <p class="preset-desc" id="presetDesc">Lv.4·5 집중 · B2·C1 + 구동사·구문</p>
 
-        <p class="hero-sub" id="heroSub">새 카드 20개로 시작해 보세요.</p>
+        <p class="hero-sub" id="heroSub">새 카드 10개로 시작해 보세요.</p>
         <button class="primary-btn" id="startBtn">학습 시작</button>
         <div class="mode-pick" id="modePick">
           <button class="mode-chip active" data-mode="quiz">🔤 4지선다</button>
@@ -110,6 +121,17 @@
         </div>
       </div>
 
+      <div class="tool-row">
+        <button class="tool-card speak" id="goSpeak">
+          <span class="tool-ico">🗣️</span>
+          <span class="tool-txt"><b>말하기·발음 교정</b><span>따라 말하면 단어별 채점</span></span>
+        </button>
+        <button class="tool-card chat" id="goChat">
+          <span class="tool-ico">💬</span>
+          <span class="tool-txt"><b>AI 회화방</b><span>주제별 대화 + 문장 교정</span></span>
+        </button>
+      </div>
+
       <div class="stat-row">
         <div class="mini card"><b id="mTotal">0</b><span>외운 카드</span></div>
         <div class="mini card"><b id="mLearning">0</b><span>학습 중</span></div>
@@ -161,6 +183,11 @@
           </div>
           <p class="quiz-phon" id="quizPhon"></p>
           <div class="options" id="quizOptions"></div>
+          <div class="ex-say" id="quizExample" hidden>
+            <span class="ex-say-lbl">예문 미리 듣기</span>
+            <button class="ghost-btn small" id="quizExBtn">🔊 예문</button>
+            <button class="ghost-btn small" id="quizExBtnSlow">🐢 0.75x</button>
+          </div>
         </div>
 
         <!-- 빈칸 채우기 -->
@@ -200,6 +227,7 @@
         <button class="speak fc-float" id="fcSpeak" aria-label="발음 듣기">
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 9h3l4-4v14l-4-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
+        <button class="speak fc-float slow" id="fcSpeakSlow" aria-label="천천히 듣기">🐢</button>
         <div class="flip card" id="flipCard">
           <div class="flip-inner">
             <div class="flip-face front">
@@ -215,6 +243,10 @@
               <div class="fc-ex">
                 <p class="ex-en" id="fcExEn"></p>
                 <p class="ex-ko" id="fcExKo"></p>
+                <div class="ex-say compact">
+                  <button class="ghost-btn small" id="fcExSpeak">🔊 예문</button>
+                  <button class="ghost-btn small" id="fcExSpeakSlow">🐢 0.75x</button>
+                </div>
               </div>
               <p class="fc-note" id="fcNote" hidden></p>
             </div>
@@ -233,7 +265,7 @@
         <p class="result-num"><span id="rCorrect">0</span>/<span id="rTotal">0</span></p>
         <p class="result-sub" id="rSub"></p>
         <div class="result-list" id="rList"></div>
-        <button class="primary-btn" id="rAgain">한 번 더</button>
+        <button class="primary-btn" id="rAgain">10문제 더 풀기</button>
         <button class="ghost-btn wide" id="rHome">홈으로</button>
       </div>
     </section>
@@ -260,6 +292,130 @@
       <p class="list-meta" id="listMeta">0개</p>
       <div class="word-list" id="wordList"></div>
       <button class="more-btn" id="moreBtn" hidden>더 보기</button>
+    </section>
+
+    <!-- 말하기 · 발음 교정 -->
+    <section class="view" id="view-speak" hidden>
+      <div class="card speak-setup" id="speakSetup">
+        <p class="eyebrow">따라 말하면 채점</p>
+        <h2 class="card-title">🗣️ 말하기 · 발음 교정</h2>
+        <p class="muted small">제시된 영어를 마이크에 따라 말하면, 브라우저 음성인식이 받아쓴 결과와 원문을 단어별로 비교해 <b class="ok-t">맞게 말한 단어</b>·<b class="bad-t">놓친 단어</b>와 교정 팁을 보여줍니다.</p>
+        <div class="seg-full" id="speakType">
+          <button class="seg active" data-type="word">단어·구문</button>
+          <button class="seg" data-type="sent">통문장</button>
+        </div>
+        <div class="chips-scroll" id="speakLv">
+          <button class="chip active" data-lv="0">내 프리셋</button>
+          <button class="chip" data-lv="3">Lv.3</button>
+          <button class="chip" data-lv="4">Lv.4</button>
+          <button class="chip" data-lv="5">Lv.5 구문</button>
+          <button class="chip" data-lv="6">Lv.6 회화</button>
+          <button class="chip" data-lv="weak">오답</button>
+        </div>
+        <p class="speak-note" id="speakNote"></p>
+        <button class="primary-btn" id="speakStart">말하기 연습 시작 (10문제)</button>
+      </div>
+
+      <div id="speakRun" hidden>
+        <div class="study-bar">
+          <button class="icon-btn back" id="speakExit" aria-label="나가기">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="progress"><span id="speakProg"></span></div>
+          <span class="counter" id="speakCounter">0/0</span>
+          <button class="speed-btn" id="speakSpeedBtn">🔊 1.0x</button>
+        </div>
+        <div class="card speak-card">
+          <p class="quiz-tag" id="speakTag">따라 말해 보세요</p>
+          <p class="speak-target" id="speakTarget"></p>
+          <p class="speak-ko" id="speakKo"></p>
+          <div class="speak-tools">
+            <button class="ghost-btn small" id="speakListen">🔊 듣기</button>
+            <button class="ghost-btn small" id="speakListenSlow">🐢 0.75x</button>
+            <button class="ghost-btn small" id="speakSkip">건너뛰기</button>
+          </div>
+          <div class="mic-wrap">
+            <button class="mic-btn" id="micBtn" aria-label="녹음 시작">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 4a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V7a3 3 0 0 1 3-3Z" fill="currentColor"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4m-4 0h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <p class="mic-hint" id="micHint">마이크를 눌러 따라 말하세요</p>
+            <p class="mic-live" id="micLive"></p>
+          </div>
+        </div>
+        <div class="card speak-result" id="speakResult" hidden>
+          <div class="sr-head">
+            <p class="sr-score"><span id="srScore">0</span><em>점</em></p>
+            <p class="sr-sub" id="srSub"></p>
+          </div>
+          <div class="sr-words" id="srWords"></div>
+          <p class="sr-heard" id="srHeard"></p>
+          <div class="sr-tips" id="srTips"></div>
+          <div class="sr-acts">
+            <button class="ghost-btn" id="srRetry">다시 말하기</button>
+            <button class="primary-btn" id="srNext">다음</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card speak-hist" id="speakHist"></div>
+    </section>
+
+    <!-- AI 회화방 -->
+    <section class="view" id="view-chat" hidden>
+      <div id="chatTopics">
+        <div class="card">
+          <p class="eyebrow">주제를 고르면 대화가 시작돼요</p>
+          <h2 class="card-title">💬 AI 회화방</h2>
+          <p class="muted small">내가 말한 문장은 <b>문법·표현 교정</b>과 함께 대화방에 저장됩니다. 서버 없이 내장 교정기로 100% 동작하고, 원하면 Gemini/OpenAI 키를 넣어 실시간 자유 대화로 넓힐 수 있어요.</p>
+          <div class="topic-grid" id="topicGrid"></div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">내 문장 기록</h2>
+          <p class="muted small" id="chatStats">아직 기록이 없어요.</p>
+          <div id="chatHistory"></div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">실시간 LLM 연결 (선택)</h2>
+          <p class="muted small">키는 <b>이 브라우저(localStorage)에만</b> 저장되고 서버로 보내지 않습니다. 공용 기기에서는 쓰지 마세요. Gemini는 브라우저 직접 호출이 되고, OpenAI는 브라우저 정책상 막힐 수 있습니다.</p>
+          <div class="setting-row">
+            <div><b>제공자</b><span class="muted">API 형식</span></div>
+            <div class="seg-mini" id="aiPick">
+              <button data-p="gemini" class="active">Gemini</button>
+              <button data-p="openai">OpenAI</button>
+              <button data-p="none">내장만</button>
+            </div>
+          </div>
+          <label class="ai-key-row"><span>API 키</span>
+            <input id="aiKey" type="password" placeholder="AIza… 또는 sk-…" autocomplete="off" enterkeyhint="done">
+          </label>
+          <label class="ai-key-row"><span>모델</span>
+            <input id="aiModel" type="text" placeholder="gemini-2.5-flash" autocomplete="off">
+          </label>
+          <div class="btn-row">
+            <button class="primary-btn small" id="aiSave">키 저장</button>
+            <button class="ghost-btn small" id="aiClear">키 삭제</button>
+          </div>
+          <p class="muted small" id="aiState"></p>
+        </div>
+      </div>
+
+      <div id="chatRoom" hidden>
+        <div class="chat-bar">
+          <button class="icon-btn back" id="chatBack" aria-label="나가기">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="chat-title"><b id="chatTopicName">AI 회화방</b><span id="chatTopicSub"></span></div>
+          <button class="ghost-btn small" id="chatReset">처음부터</button>
+        </div>
+        <div class="chat-log" id="chatLog"></div>
+        <div class="chat-suggest" id="chatSuggest"></div>
+        <div class="chat-input">
+          <button class="mic-mini" id="chatMic" aria-label="말해서 입력">🎤</button>
+          <input id="chatText" type="text" placeholder="영어로 말해 보세요 (한국어도 교정돼요)" autocomplete="off" enterkeyhint="send">
+          <button class="send-btn" id="chatSend">↑</button>
+        </div>
+        <p class="chat-note" id="chatNote">Enter로 전송 · 마이크로 말하면 자동 입력</p>
+      </div>
     </section>
 
     <!-- 통계/설정 -->
@@ -294,8 +450,10 @@
         </div>
         <div class="setting-row">
           <div><b>하루 새 카드</b><span class="muted">처음 보는 카드 개수</span></div>
-          <div class="stepper">
-            <button id="newMinus">−</button><span id="newVal">20</span><button id="newPlus">+</button>
+          <div class="seg-mini" id="newPick">
+            <button data-n="5">5</button>
+            <button data-n="10" class="active">10</button>
+            <button data-n="15">15</button>
           </div>
         </div>
         <div class="setting-row">
@@ -368,6 +526,14 @@
     <button class="tab" data-tab="list">
       <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 5h14M5 12h14M5 19h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span>단어장</span>
+    </button>
+    <button class="tab" data-tab="speak">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 4a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V7a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span>말하기</span>
+    </button>
+    <button class="tab" data-tab="chat">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 6h16v10H9l-5 4V6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <span>회화</span>
     </button>
     <button class="tab" data-tab="stats">
       <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 19V9m5 10V5m5 14v-7m5 7V8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>

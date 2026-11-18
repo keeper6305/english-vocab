@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>QA · 회화 영어 6,000 v3.8</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 16px; background: #eef0f6; color: #191c2b; }
+  h1 { font-size: 16px; margin: 0 0 10px; }
+  #sum { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  #out { font-size: 12px; line-height: 1.5; background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 16px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
+  .ok { color: #0a7d54; font-weight: 700; }
+  .bad { color: #c9415a; font-weight: 700; }
+  .frames { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; }
+  iframe { border: 1px solid #c9cede; border-radius: 10px; background: #fff; flex: 0 0 auto; }
+</style>
+</head>
+<body>
+<h1>v3.8 자동 점검 — 해설 고유성 · 10문제 · 예문 TTS · 말하기 · AI 회화 · 뒤로가기 · 360/390/430</h1>
+<div id="sum">점검 중…</div>
+<pre id="out">…</pre>
+<div class="frames" id="frames"></div>
+<script>
+const WIDTHS = [360, 390, 430];
+const out = document.getElementById('out');
+const sum = document.getElementById('sum');
+const checks = [];
+const errors = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function rec(w, name, ok, detail) { checks.push({ w, name, ok: !!ok, detail: detail || '' }); }
+
+function mkFrame(w) {
+  const f = document.createElement('iframe');
+  f.width = w; f.height = 860;
+  f.src = 'index.html?qa=1';
+  f.dataset.w = w;
+  document.getElementById('frames').appendChild(f);
+  return f;
+}
+
+function scrollableAncestor(el, doc) {
+  let p = el.parentElement;
+  while (p && p !== doc.body) {
+    const ox = getComputedStyle(p).overflowX;
+    if (ox === 'auto' || ox === 'scroll') return true;
+    p = p.parentElement;
+  }
+  return false;
+}
+
+function checkOverflow(doc) {
+  const vw = doc.documentElement.clientWidth;
+  const bad = [];
+  doc.querySelectorAll('body *').forEach(el => {
+    if (el.closest('[hidden]')) return;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return;
+    if (r.right > vw + 1 || r.left < -1) {
+      if (scrollableAncestor(el, doc)) return;
+      bad.push((el.id ? '#' + el.id : '.' + (el.className || el.tagName)) + ' [' + Math.round(r.left) + '..' + Math.round(r.right) + ']');
+    }
+  });
+  return { vw, scroll: doc.documentElement.scrollWidth, bad: bad.slice(0, 5), badCount: bad.length };
+}
+
+function assertOverflow(doc, w, label) {
+  const r = checkOverflow(doc);
+  rec(w, 'overflow:' + label, r.badCount === 0 && r.scroll <= r.vw + 1,
+    'scrollW=' + r.scroll + ' vw=' + r.vw + (r.badCount ? ' · ' + r.bad.join(', ') : ''));
+}
+
+async function run() {
+  const frames = WIDTHS.map(mkFrame);
+  await sleep(3600);
+
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    const w = WIDTHS[i];
+    const doc = f.contentDocument;
+    const win = f.contentWindow;
+    if (!doc) { rec(w, 'iframe', false, '접근 불가'); continue; }
+    win.addEventListener('error', e => errors.push(w + 'px: ' + e.message));
+    win.addEventListener('unhandledrejection', e => errors.push(w + 'px: reject ' + (e.reason && e.reason.message || e.reason)));
+    const q = sel => doc.querySelector(sel);
+    const qa = () => win.__QA && win.__QA.state();
+    win.confirm = () => true;
+
+    try {
+      /* ---------- 홈 ---------- */
+      assertOverflow(doc, w, 'home');
+      rec(w, 'data:6,412개', !!q('#footNote') && q('#footNote').textContent.indexOf('6,412') > -1, q('#footNote') ? q('#footNote').textContent : '');
+      rec(w, 'levels:6단계', doc.querySelectorAll('#levelList .level-row').length === 6, 'rows=' + doc.querySelectorAll('#levelList .level-row').length);
+      rec(w, 'tab:5개', doc.querySelectorAll('.tabbar .tab').length === 5, 'tabs=' + doc.querySelectorAll('.tabbar .tab').length);
+      rec(w, 'home:도구 카드', !!q('#goSpeak') && !!q('#goChat'), 'speak/chat');
+      const ss = qa() && win.__QA.setSize();
+      rec(w, '세트 크기:10', ss === 10, 'SET_SIZE=' + ss);
+      rec(w, '새 카드 기본 10', qa() && qa().store.settings.newPerDay === 10, 'newPerDay=' + (qa() && qa().store.settings.newPerDay));
+      const noHigh = qa() && ![20, 30, 50, 100].includes(qa().store.settings.newPerDay);
+      rec(w, '20개 이상 옵션 없음', noHigh && doc.querySelectorAll('#newPick button[data-n="20"],#newPick button[data-n="30"]').length === 0,
+        'newPick=' + Array.from(doc.querySelectorAll('#newPick button')).map(b => b.dataset.n).join('/'));
+
+      /* ---------- 해설 전수 고유성 ---------- */
+      if (w === 390) {
+        const e5 = win.__QA.explainAll(5);
+        const e6 = win.__QA.explainAll(6);
+        rec(w, '해설 Lv.5:1000건 전수 고유', e5.n === 1000 && e5.uniq === 1000 && e5.dups.length === 0, 'n=' + e5.n + ' uniq=' + e5.uniq + ' dups=' + e5.dups.join(','));
+        rec(w, '해설 Lv.6:412건 전수 고유', e6.n === 412 && e6.uniq === 412 && e6.dups.length === 0, 'n=' + e6.n + ' uniq=' + e6.uniq + ' dups=' + e6.dups.join(','));
+        const all = win.__QA.explainAll(0);
+        const shortX = all.sample && all.sample.every(x => x.x && x.x.length > 20);
+        rec(w, '해설:의미·문법·상황 포함', shortX && /뜻|의미|동사|입자|=/.test(all.sample[0].x), all.sample[0].x.slice(0, 80));
+
+        /* ---------- 내장 교정기 ---------- */
+        const c1 = win.__QA.correct('I very like this cafe. Yesterday I go here.');
+        rec(w, '교정:very+동사', c1.corrected.indexOf('really like') > -1, c1.corrected);
+        rec(w, '교정:과거시제', /went/.test(c1.corrected), c1.corrected);
+        rec(w, '교정:이유 설명', c1.notes.length >= 2 && c1.notes.every(n => n.why), c1.notes.map(n => n.from + '→' + n.to).join(','));
+        const c2 = win.__QA.correct('I want a coffee');
+        rec(w, '교정:자연스러운 대안', c2.natural.indexOf('Could I get') > -1, c2.natural);
+        const c3 = win.__QA.correct('I go to school yesterday and eat lunch');
+        rec(w, '교정:과거 동사 1개만', (c3.corrected.match(/went|ate/g) || []).length === 1, c3.corrected);
+
+        /* ---------- 발음 정렬 ---------- */
+        const a1 = win.__QA.align('Can I get a large iced Americano to go?', 'can i get a large ice american to go');
+        rec(w, '발음:단어 정렬', a1.items.length === 9 && a1.ok >= 5, a1.items.map(x => x.word + ':' + x.state).join(' '));
+        rec(w, '발음:점수 0~100', a1.score > 0 && a1.score < 100, 'score=' + a1.score);
+        const a2 = win.__QA.align('nice to meet you', 'nice to meet you');
+        rec(w, '발음:완전 일치 100점', a2.score === 100, 'score=' + a2.score);
+        const a3 = win.__QA.align('think this through', 'sink dis true');
+        rec(w, '발음:비슷한 단어 표시', a3.items.some(x => x.state === 'near'), a3.items.map(x => x.word + ':' + x.state).join(' '));
+      }
+
+      /* ---------- 10문제 세트 (프리셋별) ---------- */
+      if (w === 390) {
+        for (const p of ['mid', 'upper', 'pattern']) {
+          doc.querySelector('#presetSeg .preset-btn[data-preset="' + p + '"]').click();
+          await sleep(120);
+          q('#modePick .mode-chip[data-mode="quiz"]').click();
+          await sleep(80);
+          q('#startBtn').click();
+          await sleep(320);
+          const st0 = qa();
+          const qlen = st0 && st0.S ? st0.S.queue.length : -1;
+          const lvs = st0 && st0.S ? Array.from(new Set(st0.S.queue.map(x => x.c._lv))).sort() : [];
+          rec(w, '프리셋 ' + p + ':10문제', qlen === 10, 'queue=' + qlen + ' lv=' + lvs.join(','));
+          rec(w, '프리셋 ' + p + ':10 이하', qlen <= 10, 'queue=' + qlen);
+          q('#studyBack').click();
+          await sleep(200);
+        }
+        doc.querySelector('#presetSeg .preset-btn[data-preset="upper"]').click();
+        await sleep(120);
+      }
+
+      /* ---------- 속도 토글 ---------- */
+      q('#speedBtn').click();
+      await sleep(100);
+      rec(w, 'speed:0.75x', q('#speedBtn').textContent.indexOf('0.75x') > -1 && Number(qa().speed) === 0.75, q('#speedBtn').textContent);
+      q('#speedBtn').click();
+      await sleep(100);
+      rec(w, 'speed:1.0x', q('#speedBtn').textContent.indexOf('1.0x') > -1, q('#speedBtn').textContent);
+
+      /* ---------- 구문 드릴 · 빈칸 ---------- */
+      const tagChip = Array.from(doc.querySelectorAll('#drillTags .chip')).filter(c => c.textContent.indexOf('연결·논리') === 0)[0];
+      if (tagChip) tagChip.click();
+      await sleep(140);
+      q('.drill-btn[data-drill="blank"]').click();
+      await sleep(380);
+      const st1 = qa();
+      rec(w, 'blank:카드 표시', !q('#blankCard').hidden && q('#blankSentence').textContent.indexOf('____') > -1,
+        q('#blankSentence').textContent.slice(0, 50));
+      rec(w, 'blank:보기 4개', doc.querySelectorAll('#blankOptions .opt').length === 4, 'opts=' + doc.querySelectorAll('#blankOptions .opt').length);
+      assertOverflow(doc, w, 'study-blank');
+
+      const cur = st1 && st1.S ? st1.S.queue[st1.S.i].c : null;
+      const opts = Array.from(doc.querySelectorAll('#blankOptions .opt'));
+      const wrongBtn = opts.filter(b => !cur || b.dataset.val.toLowerCase() !== cur.w.toLowerCase())[0] || opts[0];
+      if (wrongBtn) wrongBtn.click();
+      await sleep(220);
+      const fb1 = q('#feedback');
+      rec(w, 'blank:오답 피드백', fb1 && !fb1.hidden && !!q('.fb-nuance') && q('.fb-nuance').textContent.length > 15,
+        q('.fb-nuance') ? q('.fb-nuance').textContent.slice(0, 60) : 'no nuance');
+      /* 보기별 뜻 */
+      const olis = doc.querySelectorAll('#feedback .fb-opts li');
+      const olNotes = Array.from(olis).filter(li => li.querySelector('.ol-n') && li.querySelector('.ol-n').textContent.trim().length > 0).length;
+      rec(w, '해설:보기별 뜻 4개', olis.length === 4 && olNotes >= 4, 'items=' + olis.length + ' notes=' + olNotes);
+      rec(w, '해설:정답 보기 표시', doc.querySelectorAll('#feedback .fb-opts li.right').length === 1, 'right=' + doc.querySelectorAll('#feedback .fb-opts li.right').length);
+      rec(w, '해설:문제별 맞춤', !!q('#feedback .fb-exp') && q('#feedback .fb-x').textContent.length > 30, q('#feedback .fb-x') ? q('#feedback .fb-x').textContent.slice(0, 70) : 'none');
+      rec(w, '예문 듣기:해설 버튼', !!q('#fbSay') && !!q('#fbSaySlow'), 'fbSay=' + !!q('#fbSay'));
+      const st2 = qa();
+      const recAfter = st2 && cur ? st2.store.cards[cur.w.toLowerCase()] : null;
+      const gap = recAfter ? recAfter.due - Date.now() : -1;
+      rec(w, 'SRS:오답 10분', !!recAfter && recAfter.st === 0 && gap > 550000 && gap < 650000, 'due in ' + Math.round(gap / 1000) + 's');
+      /* 즉시 저장 + 이어 풀기 */
+      const sess = win.__QA.session();
+      rec(w, '중도 기록:세션 저장', !!sess && sess.i >= 1 && sess.words.length <= 10, sess ? 'i=' + sess.i + ' n=' + sess.words.length : 'none');
+      rec(w, '중도 기록:10문제 유지', !!sess && sess.words.length === 10, sess ? 'n=' + sess.words.length : 'none');
+      rec(w, '중도 기록:오늘 카운트 즉시', st2.store.stats[Object.keys(st2.store.stats)[0]].n >= 1,
+        'today n=' + st2.store.stats[Object.keys(st2.store.stats)[0]].n);
+      assertOverflow(doc, w, 'study-blank-feedback');
+
+      /* ---------- 문장 순서 ---------- */
+      q('#studyBack').click();
+      await sleep(220);
+      q('#modePick .mode-chip[data-mode="order"]').click();
+      await sleep(90);
+      q('#startBtn').click();
+      await sleep(360);
+      rec(w, 'order:카드 표시', !q('#orderCard').hidden && doc.querySelectorAll('#tilePool .tile').length > 0,
+        'tiles=' + doc.querySelectorAll('#tilePool .tile').length);
+      assertOverflow(doc, w, 'study-order');
+      q('#studyBack').click();
+      await sleep(220);
+
+      /* ---------- 4지선다: 예문 버튼 · 정답 해설 ---------- */
+      q('#modePick .mode-chip[data-mode="quiz"]').click();
+      await sleep(90);
+      q('#startBtn').click();
+      await sleep(360);
+      rec(w, 'quiz:예문 듣기 버튼', !q('#quizExample').hidden && !!q('#quizExBtn') && !!q('#quizExBtnSlow'), 'visible=' + !q('#quizExample').hidden);
+      const st3 = qa();
+      const cur3 = st3 && st3.S ? st3.S.queue[st3.S.i].c : null;
+      const opts3 = Array.from(doc.querySelectorAll('#quizOptions .opt'));
+      const rightBtn = opts3.filter(b => cur3 && b.dataset.val === cur3.m)[0];
+      if (rightBtn) rightBtn.click();
+      await sleep(200);
+      const r3 = qa() && cur3 ? qa().store.cards[cur3.w.toLowerCase()] : null;
+      const g3 = r3 ? r3.due - Date.now() : -1;
+      rec(w, 'SRS:정답 1일', !!r3 && r3.st === 1 && g3 > 86000000 && g3 < 87000000, 'due in ' + Math.round(g3 / 3600000) + 'h');
+      rec(w, 'quiz:정답 피드백', !q('#feedback').hidden && q('.fb-title').classList.contains('ok'), q('#feedback').textContent.slice(0, 30));
+      rec(w, 'quiz:보기 뜻 4개', doc.querySelectorAll('#feedback .fb-opts li').length === 4, 'items=' + doc.querySelectorAll('#feedback .fb-opts li').length);
+
+      /* ---------- 모드별 기록 ---------- */
+      const ms1 = win.__QA.modeStats();
+      rec(w, '기록:모드별(4지선다)', ms1.quiz.today >= 1 && ms1.quiz.todayOk >= 1, 'quiz today=' + ms1.quiz.today);
+      const pr1 = win.__QA.progress();
+      rec(w, '기록:학습 진도 상승', pr1.studied >= 1, 'studied=' + pr1.studied);
+      q('#studyBack').click();
+      await sleep(240);
+      rec(w, '홈:오늘 학습 표시', +q('#tTodayN').textContent >= 1, 'todayN=' + q('#tTodayN').textContent);
+
+      /* ---------- 카드(플래시카드) 예문 TTS ---------- */
+      q('#modePick .mode-chip[data-mode="card"]').click();
+      await sleep(90);
+      q('#startBtn').click();
+      await sleep(340);
+      q('#flipCard').click();
+      await sleep(420);
+      rec(w, 'card:뒤집기', q('#flipCard').classList.contains('flipped'), 'flipped=' + q('#flipCard').classList.contains('flipped'));
+      rec(w, 'card:예문 듣기 버튼', !!q('#fcExSpeak') && !!q('#fcExSpeakSlow') && !q('#fcExSpeak').hidden, 'hidden=' + (q('#fcExSpeak') && q('#fcExSpeak').hidden));
+      assertOverflow(doc, w, 'study-card');
+      q('#gradeRow .grade.good').click();
+      await sleep(260);
+      q('#studyBack').click();
+      await sleep(240);
+
+      /* ---------- Lv.6 회화 통문장 ---------- */
+      const convChip = Array.from(doc.querySelectorAll('#convTags .chip')).filter(c => c.textContent.indexOf('카페·식당') === 0)[0];
+      if (convChip) convChip.click();
+      await sleep(140);
+      q('.conv-btn[data-conv="blank"]').click();
+      await sleep(380);
+      const stC = qa();
+      rec(w, 'conv:빈칸 카드', !q('#blankCard').hidden && q('#blankSentence').textContent.indexOf('____') > -1,
+        q('#blankSentence').textContent.slice(0, 60));
+      rec(w, 'conv:10문제', stC && stC.S.queue.length === 10, 'queue=' + (stC && stC.S.queue.length));
+      rec(w, 'conv:보기 4개', doc.querySelectorAll('#blankOptions .opt').length === 4, 'opts=' + doc.querySelectorAll('#blankOptions .opt').length);
+      const curC = stC && stC.S ? stC.S.queue[stC.S.i].c : null;
+      const optsC = Array.from(doc.querySelectorAll('#blankOptions .opt'));
+      const wrongC = optsC.filter(b => curC && b.dataset.val.toLowerCase() !== curC.b.toLowerCase())[0];
+      if (wrongC) wrongC.click();
+      await sleep(240);
+      rec(w, 'conv:오답 선지 뜻', doc.querySelectorAll('#feedback .fb-opts li').length === 4 &&
+        Array.from(doc.querySelectorAll('#feedback .fb-opts .ol-n')).every(n => n.textContent.trim()), 'ol=' + doc.querySelectorAll('#feedback .fb-opts .ol-n').length);
+      rec(w, 'conv:해설', !!q('#feedback .fb-x') && q('#feedback .fb-x').textContent.length > 40, q('#feedback .fb-x') ? q('#feedback .fb-x').textContent.slice(0, 70) : '');
+      assertOverflow(doc, w, 'study-conv-feedback');
+      q('#studyBack').click();
+      await sleep(220);
+
+      /* ---------- 말하기 모드 ---------- */
+      const tabSpeak = doc.querySelector('.tab[data-tab="speak"]');
+      tabSpeak.click();
+      await sleep(220);
+      assertOverflow(doc, w, 'speak-setup');
+      doc.querySelector('#speakLv .chip[data-lv="6"]').click();
+      await sleep(80);
+      doc.querySelector('#speakType .seg[data-type="sent"]').click();
+      await sleep(80);
+      q('#speakStart').click();
+      await sleep(360);
+      const sp = win.__QA.speakState();
+      rec(w, '말하기:10문제 시작', !!sp && sp.n === 10, sp ? 'n=' + sp.n : 'none');
+      rec(w, '말하기:문장 제시', !!sp && sp.target.length > 6, sp ? sp.target : '');
+      rec(w, '말하기:탭바 숨김', q('#tabbar').hidden, 'hidden=' + q('#tabbar').hidden);
+      assertOverflow(doc, w, 'speak-run');
+      win.__QA.speakCheck(sp.target);
+      await sleep(220);
+      rec(w, '말하기:완전 일치 100점', q('#srScore').textContent === '100', 'score=' + q('#srScore').textContent);
+      const swOk = doc.querySelectorAll('#srWords .sw.ok').length;
+      const swAll = doc.querySelectorAll('#srWords .sw').length;
+      rec(w, '말하기:단어 초록 표시', swAll > 0 && swOk === swAll, 'ok=' + swOk + '/' + swAll);
+      win.__QA.speakCheck('something completely different');
+      await sleep(220);
+      rec(w, '말하기:놓친 단어 빨강', doc.querySelectorAll('#srWords .sw.miss').length > 0, 'miss=' + doc.querySelectorAll('#srWords .sw.miss').length);
+      rec(w, '말하기:점수 0~100', +q('#srScore').textContent >= 0 && +q('#srScore').textContent <= 100, 'score=' + q('#srScore').textContent);
+      rec(w, '말하기:교정 팁', doc.querySelectorAll('#srTips .tip').length >= 1, 'tips=' + doc.querySelectorAll('#srTips .tip').length);
+      rec(w, '말하기:기록 저장', qa() && qa().store.speak.length >= 2, 'speak=' + (qa() && qa().store.speak.length));
+      assertOverflow(doc, w, 'speak-result');
+
+      /* 뒤로가기: 말하기 실행 → 설정 화면 */
+      win.__QA.back();
+      await sleep(300);
+      rec(w, '뒤로:말하기→설정', q('#speakRun').hidden && !q('#speakSetup').hidden, 'run hidden=' + q('#speakRun').hidden);
+      rec(w, '뒤로:탭바 복귀', !q('#tabbar').hidden, 'hidden=' + q('#tabbar').hidden);
+
+      /* ---------- AI 회화방 ---------- */
+      doc.querySelector('.tab[data-tab="chat"]').click();
+      await sleep(240);
+      assertOverflow(doc, w, 'chat-topics');
+      rec(w, '회화:주제 7개', doc.querySelectorAll('#topicGrid .topic').length === 7, 'topics=' + doc.querySelectorAll('#topicGrid .topic').length);
+      doc.querySelector('#topicGrid .topic[data-t="cafe"]').click();
+      await sleep(240);
+      const c0 = win.__QA.chatState();
+      rec(w, '회화:첫 AI 인사', !!c0 && c0.turns.length === 1 && c0.turns[0].role === 'ai', c0 ? c0.turns[0].text.slice(0, 40) : 'none');
+      rec(w, '회화:탭바 숨김', q('#tabbar').hidden, 'hidden=' + q('#tabbar').hidden);
+      assertOverflow(doc, w, 'chat-room');
+      win.__QA.chatSend('I very like this cafe. Can I get a latte?');
+      await sleep(700);
+      const c1 = win.__QA.chatState();
+      const me = c1 && c1.turns.filter(t => t.role === 'me')[0];
+      rec(w, '회화:내 문장 기록', !!me && me.text.indexOf('very like') > -1, me ? me.text : 'none');
+      rec(w, '회화:교정 표시', !!me && /really like/.test(me.corrected) && me.notes.length >= 1, me ? me.corrected : '');
+      rec(w, '회화:AI 응답', c1 && c1.turns.length >= 3 && c1.turns[c1.turns.length - 1].role === 'ai', c1 ? 'turns=' + c1.turns.length : '');
+      rec(w, '회화:문장 저장', !!qa().store.chat.cafe && qa().store.chat.cafe.turns.filter(t => t.role === 'me').length === 1,
+        'saved=' + (qa().store.chat.cafe ? qa().store.chat.cafe.turns.length : 0));
+      rec(w, '회화:제안 문장', doc.querySelectorAll('#chatSuggest .sug').length >= 1, 'sug=' + doc.querySelectorAll('#chatSuggest .sug').length);
+      assertOverflow(doc, w, 'chat-room-msg');
+
+      win.__QA.chatClose();
+      await sleep(240);
+      rec(w, '회화:나가기→주제 목록', q('#chatRoom').hidden && !q('#chatTopics').hidden, 'room hidden=' + q('#chatRoom').hidden);
+      rec(w, '회화:기록에 저장됨', q('#chatHistory').textContent.indexOf('really like') > -1, q('#chatHistory').textContent.replace(/\s+/g, ' ').slice(0, 60));
+      rec(w, '회화:주제 배지', !!q('#topicGrid .topic[data-t="cafe"] .topic-badge'), 'badge=' + !!q('#topicGrid .topic[data-t="cafe"] .topic-badge'));
+      assertOverflow(doc, w, 'chat-topics-after');
+
+      /* ---------- 뒤로가기 2단계 ---------- */
+      win.__QA.back();
+      await sleep(280);
+      rec(w, '뒤로:서브탭→홈', q('.tab[data-tab="home"]').classList.contains('active'), 'active=' + q('.tab[data-tab="home"]').classList.contains('active'));
+      win.__QA.back();
+      await sleep(280);
+      const toast1 = q('#toast');
+      rec(w, '뒤로:홈 1회→토스트', !!toast1 && !toast1.hidden && toast1.textContent.indexOf('한 번 더') > -1, toast1 ? toast1.textContent : 'none');
+
+      /* ---------- 단어장 · 통계 ---------- */
+      doc.querySelector('.tab[data-tab="list"]').click();
+      await sleep(240);
+      assertOverflow(doc, w, 'list');
+      doc.querySelector('.tab[data-tab="stats"]').click();
+      await sleep(240);
+      assertOverflow(doc, w, 'stats');
+      rec(w, 'stats:모드별 표', q('#statsModes').querySelectorAll('tbody tr').length === 4, 'rows=' + q('#statsModes').querySelectorAll('tbody tr').length);
+      doc.querySelector('.tab[data-tab="home"]').click();
+      await sleep(200);
+      rec(w, '홈:이어서 풀기 카드', !q('#resumeCard').hidden, 'hidden=' + q('#resumeCard').hidden);
+    } catch (err) {
+      rec(w, '예외', false, String(err && err.stack || err).slice(0, 140));
+    }
+  }
+
+  let fail = 0;
+  let html = '';
+  checks.forEach(c => {
+    if (!c.ok) fail++;
+    html += (c.ok ? '<span class="ok">OK </span>' : '<span class="bad">BAD</span> ') + c.w + 'px · ' + c.name + (c.detail ? '  ' + c.detail : '') + '\n';
+  });
+  html += '\n점검 ' + checks.length + '건 · 실패 ' + fail + '건\n';
+  html += '콘솔 에러: ' + (errors.length ? errors.join(' | ') : '0건') + '\n';
+  html += 'viewport: ' + WIDTHS.join(' / ') + ' · ' + new Date().toLocaleString();
+  out.innerHTML = html;
+  sum.innerHTML = '<span class="' + (fail === 0 && errors.length === 0 ? 'ok' : 'bad') + '">' +
+    (fail === 0 && errors.length === 0 ? 'ALL PASS' : 'FAIL ' + fail) + '</span> · 점검 ' + checks.length +
+    '건 · 콘솔 에러 ' + errors.length + '건';
+}
+run();
+</script>
+</body>
+</html>

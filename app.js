@@ -1,8 +1,18 @@
-/* 회화 영어 단어장 · 6,412 SRS — v3 (학습 모드별 기록·진도 + 실전 회화 통문장 Lv.6) */
+/* 회화 영어 단어장 · 6,412 SRS — v3.8
+ * - 한 문제마다 즉시 저장(중간에 나가도 푼 만큼 반영) + 이어서 풀기
+ * - 모든 학습 세트 10문제
+ * - 예문 듣기(TTS, 0.75x/1.0x)
+ * - 문제별 맞춤 해설 + 보기(A~D) 뜻
+ * - 🗣️ 말하기·발음 교정 (Web Speech API)
+ * - 💬 AI 회화방 (주제별 시나리오 + 내장 교정기 + 선택 LLM)
+ * - 안드로이드 뒤로가기 2단계
+ */
 (function () {
   'use strict';
 
   var KEY = 'vocab5k.v1';
+  var SET_SIZE = 10;          /* 모든 학습·퀴즈 세트는 10문제 */
+  var NEW_OPTIONS = [5, 10, 15];  /* 하루 새 카드 선택지 — 20 이상은 두지 않는다 */
   var QA = /[?&]qa=1/.test(location.search);
   var DAY = 86400000;
   var MIN10 = 600000;
@@ -59,8 +69,12 @@
 
   function load() {
     var base = {
-      v: 1, cards: {}, stats: {}, modes: {},
-      settings: { newPerDay: 20, dir: 'w2m', level: 0, theme: null, includeBasic: false, preset: 'upper', mode: 'quiz', speed: 1 },
+      v: 1, cards: {}, stats: {}, modes: {}, speak: [], chat: {}, session: null,
+      settings: {
+        newPerDay: 10, dir: 'w2m', level: 0, theme: null, includeBasic: false,
+        preset: 'upper', mode: 'quiz', speed: 1,
+        aiProvider: 'gemini', aiKey: '', aiModel: ''
+      },
       newDay: null, newCount: 0
     };
     if (QA) return base;
@@ -71,9 +85,13 @@
       s.cards = s.cards || {};
       s.stats = s.stats || {};
       s.modes = s.modes || {};
+      s.speak = s.speak || [];
+      s.chat = s.chat || {};
       s.settings = Object.assign(base.settings, s.settings || {});
       if (!PRESETS[s.settings.preset]) s.settings.preset = 'upper';
       if (!MODE_LABEL[s.settings.mode]) s.settings.mode = 'quiz';
+      /* 20·30개 단위를 쓰던 예전 설정은 10으로 내린다 */
+      if (NEW_OPTIONS.indexOf(+s.settings.newPerDay) === -1) s.settings.newPerDay = 10;
       return s;
     } catch (e) {
       return base;
@@ -81,12 +99,19 @@
   }
 
   var saveTimer = null;
+  function saveNow() {
+    if (QA) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    try { localStorage.setItem(KEY, JSON.stringify(store)); }
+    catch (e) { toast('저장 공간이 부족해요'); }
+  }
+  /* 화면을 떠나는 순간에도 남은 변경을 흘리지 않는다 */
+  addEventListener('pagehide', saveNow);
+  addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveNow(); });
   function save() {
     if (QA) return;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
-      try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { toast('저장 공간이 부족해요'); }
-    }, 120);
+    saveTimer = setTimeout(saveNow, 120);
   }
 
   function todayStats() {
@@ -209,17 +234,30 @@
 
   function speedRate() { return Number(store.settings.speed) === 0.75 ? 0.75 : 1; }
 
-  function speak(text) {
+  function speak(text, rateOverride) {
     if (!speakOk) { toast('이 브라우저는 발음 재생을 지원하지 않아요'); return; }
+    var t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (!t) return;
     try {
       window.speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(text);
+      var u = new SpeechSynthesisUtterance(t);
       u.lang = 'en-US';
-      u.rate = speedRate();
+      u.rate = rateOverride || speedRate();
       var v = pickVoice();
       if (v) u.voice = v;
       window.speechSynthesis.speak(u);
     } catch (e) { toast('발음을 재생할 수 없어요'); }
+  }
+
+  /* 예문(Example sentence) 전용 — 카드·퀴즈·해설·단어장 어디서든 같은 버튼을 쓴다 */
+  function exampleOf(c) {
+    if (!c) return '';
+    return c._lv === 6 ? (c.w || '') : (c.e || c.w || '');
+  }
+  function speakExample(c, slow) {
+    var t = exampleOf(c);
+    if (!t) { toast('예문이 없는 카드예요'); return; }
+    speak(t, slow ? 0.75 : speedRate());
   }
 
   function paintSpeed() {
@@ -254,17 +292,63 @@
     currentTab = tab;
     $$('.view').forEach(function (v) { v.hidden = v.id !== 'view-' + tab; });
     $$('.tab').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === tab); });
+    var bar = $('#tabbar');
+    if (bar) bar.hidden = false;
     window.scrollTo({ top: 0, behavior: 'auto' });
     if (tab === 'home') renderHome();
     if (tab === 'list') renderList(true);
     if (tab === 'stats') renderStats();
+    if (tab === 'speak') renderSpeak();
+    if (tab === 'chat') renderChatTab();
+  }
+  function goTab(tab) {
+    if (tab === currentTab && $('#view-study').hidden) return;
+    showTab(tab);
+    pushLayer();
   }
   $$('.tab').forEach(function (b) {
-    b.addEventListener('click', function () { showTab(b.dataset.tab); });
+    b.addEventListener('click', function () { goTab(b.dataset.tab); });
   });
   $$('[data-goto]').forEach(function (b) {
-    b.addEventListener('click', function () { showTab(b.dataset.goto); });
+    b.addEventListener('click', function () { goTab(b.dataset.goto); });
   });
+
+  /* ---------------- 뒤로가기 2단계 ----------------
+   * 퀴즈·말하기·대화방·모달·서브탭 → 1회: 홈으로
+   * 홈 루트 → 1회: 토스트, 2초 안에 다시 누르면 종료 */
+  var lastBackAt = 0;
+  var exiting = false;
+  function rearm() {
+    try { history.pushState({ app: 1, t: Date.now() }, ''); } catch (e) {}
+  }
+  function pushLayer() { rearm(); }
+  function sheetOpen() { return !$('#sheet').hidden; }
+  function inStudy() { return !$('#view-study').hidden; }
+  function inSpeakRun() { return !$('#speakRun').hidden; }
+  function inChatRoom() { return !$('#chatRoom').hidden; }
+  function leaveStudy() {
+    S = null;
+    showStudy(false);
+    showTab('home');
+  }
+  addEventListener('popstate', function () {
+    if (exiting) return;
+    if (sheetOpen()) { closeSheet(); rearm(); return; }
+    if (inSpeakRun()) { endSpeakRun(); rearm(); return; }
+    if (inChatRoom()) { closeChatRoom(); rearm(); return; }
+    if (inStudy()) { saveNow(); leaveStudy(); rearm(); return; }
+    if (currentTab !== 'home') { showTab('home'); rearm(); return; }
+    var now = Date.now();
+    if (now - lastBackAt < 2000) {
+      exiting = true;
+      try { history.back(); } catch (e) {}
+      return;
+    }
+    lastBackAt = now;
+    toast('한 번 더 누르면 앱이 종료됩니다');
+    rearm();
+  });
+  rearm();
 
   /* ---------------- SRS ---------------- */
   function isMaster(word) { var r = peek(word); return !!(r && r.st >= MASTER_ST); }
@@ -451,7 +535,7 @@
     var used = {};
     function push(c, kind) {
       var k = c.w.toLowerCase();
-      if (used[k] || queue.length >= 25) return;
+      if (used[k] || queue.length >= SET_SIZE) return;
       used[k] = 1;
       queue.push({ c: c, kind: kind });
     }
@@ -544,6 +628,7 @@
     renderToday();
     renderDrill();
     renderConv();
+    renderResume();
   }
 
   /* ---------------- 오늘의 학습 · 모드별 기록 ---------------- */
@@ -623,6 +708,8 @@
   var S = null;
   var current = null;
   var answered = false;
+  var CUR_OPTS = [];      /* 지금 문제의 보기 [{v, note}] — 해설에 보기별 뜻을 붙인다 */
+  var CUR_ANSWER = '';
   var uiMode = 'quiz';
   var curMode = 'quiz';   /* 지금 매기고 있는 학습 모드 — 모드별 기록의 기준 */
 
@@ -700,18 +787,20 @@
 
     if (mode === 'weak') {
       if (!weak.length) { toast('오답 노트가 비어 있어요'); return; }
-      weak.slice(0, 30).forEach(function (c) { push(c, 'weak'); });
+      weak.slice(0, SET_SIZE).forEach(function (c) { push(c, 'weak'); });
     } else if (mode === 'new') {
       if (!news.length) { toast('오늘 새 카드를 다 채웠어요'); return; }
-      news.forEach(function (c) { push(c, 'new'); });
+      news.slice(0, SET_SIZE).forEach(function (c) { push(c, 'new'); });
     } else {
-      due.forEach(function (c) { push(c, 'due'); });
-      news.slice(0, 30).forEach(function (c) { push(c, 'new'); });
+      due.slice(0, SET_SIZE).forEach(function (c) { push(c, 'due'); });
+      news.slice(0, SET_SIZE).forEach(function (c) { push(c, 'new'); });
       if (!queue.length) {
-        weak.slice(0, 20).forEach(function (c) { push(c, 'weak'); });
-        if (!queue.length) pickNew(20).forEach(function (c) { push(c, 'new'); });
+        weak.slice(0, SET_SIZE).forEach(function (c) { push(c, 'weak'); });
+        if (!queue.length) pickNew(SET_SIZE).forEach(function (c) { push(c, 'new'); });
         if (!queue.length) { toast('학습할 카드가 없어요. 모든 카드를 마스터했어요!'); return; }
       }
+      /* 한 세트는 10문제 — 복습이 먼저, 모자라면 새 카드로 채운다 */
+      if (queue.length > SET_SIZE) queue = queue.slice(0, SET_SIZE);
     }
 
     /* 고른 방식으로 낼 수 있는 카드를 앞에 — 뒤에는 4지선다 대체 카드가 남는다 */
@@ -738,7 +827,7 @@
     var used = {};
     function push(c, kind) {
       var k = c.w.toLowerCase();
-      if (used[k] || queue.length >= 25) return;
+      if (used[k] || queue.length >= SET_SIZE) return;
       used[k] = 1;
       queue.push({ c: c, kind: kind });
     }
@@ -758,7 +847,45 @@
     $$('.view').forEach(function (v) { v.hidden = on ? v.id !== 'view-study' : v.id !== 'view-' + currentTab; });
     var bar = $('#tabbar');
     if (bar) bar.hidden = !!on;
-    if (on) window.scrollTo({ top: 0, behavior: 'auto' });
+    if (on) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      pushLayer();
+    }
+  }
+
+  /* 중간에 나가도 '푼 만큼'과 '남은 위치'를 남긴다 */
+  function persistSession() {
+    if (!S) return;
+    store.session = {
+      words: S.queue.map(function (q) { return q.c.w; }),
+      kinds: S.queue.map(function (q) { return q.kind; }),
+      i: (S.answeredAt != null ? S.answeredAt : S.i), mode: S.mode, label: S.label, ui: uiMode,
+      dir: S.quizDir, at: Date.now(), n: S.answers.length, ok: S.correct
+    };
+    saveNow();
+  }
+
+  function resumeSession() {
+    var st = store.session;
+    if (!st || !st.words || st.i >= st.words.length) { store.session = null; return false; }
+    var queue = [];
+    st.words.forEach(function (w, i) {
+      var c = cardByW(w);
+      if (c) queue.push({ c: c, kind: (st.kinds && st.kinds[i]) || 'resume' });
+    });
+    if (!queue.length) { store.session = null; return false; }
+    S = {
+      queue: queue, i: Math.min(st.i || 0, queue.length), mode: st.mode || 'mix',
+      answers: [], correct: 0, quizDir: st.dir || store.settings.dir, label: st.label || '이어서'
+    };
+    uiMode = MODE_LABEL[st.ui] ? st.ui : (st.ui === 'conv' ? 'blank' : (store.settings.mode || 'quiz'));
+    if (st.ui === 'conv') uiMode = 'blank';
+    store.session = null;
+    setUiMode(uiMode);
+    showStudy(true);
+    pushLayer();
+    nextCard();
+    return true;
   }
 
   function nextCard() {
@@ -806,6 +933,34 @@
     renderQuiz(c);
   }
 
+  /* 보기 하나가 무슨 뜻인지 — 오답 선지까지 뜻을 보여주기 위한 계산 */
+  function optionNote(v, c, dir) {
+    if (dir === 'w2m') {
+      if (v === c.m) return '이 표현의 뜻';
+      var lv = LEVELS[c._lv] || [];
+      for (var i = 0; i < lv.length; i++) {
+        if (lv[i].m === v && lv[i].w !== c.w) return '「' + lv[i].w + '」의 뜻';
+      }
+      return '다른 단어의 뜻';
+    }
+    var card = cardByW(v);
+    if (card) return card.m;
+    return '';
+  }
+
+  function optListHtml() {
+    if (!CUR_OPTS.length) return '';
+    var rows = CUR_OPTS.map(function (o) {
+      var right = String(o.v) === String(CUR_ANSWER);
+      return '<li class="' + (right ? 'right' : '') + '">' +
+        '<span class="ol-key">' + o.letter + '</span>' +
+        '<span class="ol-v">' + escapeHtml(o.v) + '</span>' +
+        (o.note ? '<span class="ol-n">' + escapeHtml(o.note) + '</span>' : '') +
+        (right ? '<span class="ol-tag">정답</span>' : '') + '</li>';
+    }).join('');
+    return '<div class="fb-opts"><p class="fb-lbl">보기별 뜻</p><ul>' + rows + '</ul></div>';
+  }
+
   /* ---------------- 4지선다 ---------------- */
   function renderQuiz(c) {
     var dir = S.quizDir || 'w2m';
@@ -844,6 +999,8 @@
     var box = $('#quizOptions');
     box.innerHTML = '';
     var letters = ['A', 'B', 'C', 'D'];
+    CUR_ANSWER = answer;
+    CUR_OPTS = [];
     uniq.forEach(function (opt, i) {
       var b = document.createElement('button');
       b.className = 'opt';
@@ -851,8 +1008,15 @@
       b.innerHTML = '<span class="key">' + letters[i] + '</span><span>' + escapeHtml(opt) + '</span>';
       b.addEventListener('click', function () { answerQuiz(b, opt, answer, c, dir); });
       box.appendChild(b);
+      CUR_OPTS.push({ letter: letters[i], v: opt, note: optionNote(opt, c, dir) });
     });
     $('#quizSpeak').onclick = function (e) { e.stopPropagation(); speak(c.w); };
+    var exq = $('#quizExample');
+    if (exq) {
+      exq.hidden = false;
+      $('#quizExBtn').onclick = function (e) { e.stopPropagation(); speakExample(c); };
+      $('#quizExBtnSlow').onclick = function (e) { e.stopPropagation(); speakExample(c, true); };
+    }
   }
 
   function answerQuiz(btn, picked, answer, c, dir) {
@@ -1039,6 +1203,8 @@
     var box = $('#blankOptions');
     box.innerHTML = '';
     var letters = ['A', 'B', 'C', 'D'];
+    CUR_ANSWER = bt.conv ? bt.ans : c.w;
+    CUR_OPTS = [];
     opts.forEach(function (opt, i) {
       var b = document.createElement('button');
       b.className = 'opt';
@@ -1046,6 +1212,11 @@
       b.innerHTML = '<span class="key">' + letters[i] + '</span><span>' + escapeHtml(opt) + '</span>';
       b.addEventListener('click', function () { answerBlank(b, opt, c, bt); });
       box.appendChild(b);
+      CUR_OPTS.push({
+        letter: letters[i], v: opt,
+        note: c._lv === 6 ? (BLANK_GLOSS[String(opt).toLowerCase()] || '다른 상황의 표현')
+          : (cardByW(opt) ? cardByW(opt).m : '')
+      });
     });
   }
 
@@ -1148,6 +1319,7 @@
   function renderOrder(c) {
     var od = orderOf(c);
     if (!od) { renderQuiz(c); return; }
+    CUR_OPTS = []; CUR_ANSWER = '';
     O = { c: c, toks: od.toks, ko: od.ko || c.k || '', pool: [], placed: [], hints: 0, tries: 0 };
     od.toks.forEach(function (t, i) { O.pool.push({ id: i, t: t }); });
     shuffle(O.pool);
@@ -1273,6 +1445,51 @@
     return '주어 → 동사 → 목적어(→ 장소·시간)';
   }
 
+  /* ---------------- 문제별 맞춤 해설 ---------------- */
+  var POS_NOTE = {
+    '동사': '동사라 과거형·3인칭 -s 변화를 함께 익히면 좋습니다.',
+    '명사': '명사라 복수형과 관사(a/the)를 붙여 외우면 실제 문장에서 바로 나옵니다.',
+    '형용사': '형용사라 명사 앞이나 be동사 뒤에 놓습니다.',
+    '부사': '부사라 동사·형용사·문장 전체를 꾸밉니다.',
+    '전치사': '전치사라 뒤에 명사(목적어)가 반드시 옵니다.',
+    '접속사': '접속사라 두 문장(절)을 이어 줍니다.'
+  };
+
+  function explanationOf(c) {
+    if (!c) return '';
+    if (c._lv === 6) {
+      var t = tagOf(c) || '일상';
+      var bits = [];
+      bits.push('「' + c.w + '」 = ' + (c.m || ''));
+      bits.push('쓰는 상황: ' + t + ' — 상대에게 이렇게 말하면 됩니다.');
+      if (c.b) bits.push('빈칸 표현 「' + c.b + '」 = ' + (c.bm || '') + '.');
+      if (c.e) bits.push('상대는 보통 「' + c.e + '」(' + (c.k || '') + ')라고 받아요.');
+      if (c.x) bits.push(c.x);
+      return bits.join(' ');
+    }
+    if (c.x) return c.x;   /* Lv.5 — 카드별로 생성한 의미·문법·상황 해설 */
+    var pos = c.p || '';
+    var mine = '「' + c.w + '」(' + (pos || '표현') + ') = ' + (c.m || '') + '.';
+    if (c.e) mine += ' 예문 「' + c.e + '」는 「' + (c.k || '') + '」 — 이 단어가 그 문장에서 이 뜻으로 쓰였습니다.';
+    var note = POS_NOTE[pos] || '';
+    return mine + (note ? ' ' + note : '');
+  }
+
+  function explanationHtml(c) {
+    var x = explanationOf(c);
+    if (!x) return '';
+    return '<div class="fb-exp"><p class="fb-lbl">해설</p><p class="fb-x">' + escapeHtml(x) + '</p></div>';
+  }
+
+  function sayRow(c) {
+    if (!speakOk) return '';
+    var label = c && c._lv === 6 ? '문장' : '예문';
+    return '<div class="fb-say">' +
+      '<button class="ghost-btn small" id="fbSay">🔊 ' + label + ' 듣기</button>' +
+      '<button class="ghost-btn small" id="fbSaySlow">🐢 0.75x</button>' +
+      '</div>';
+  }
+
   /* ---------------- 피드백 공통 ---------------- */
   function showFeedback(ok, bodyHtml, c, rr, nextDue) {
     var fb = $('#feedback');
@@ -1280,9 +1497,16 @@
       '<div class="fb-head"><span class="fb-title ' + (ok ? 'ok' : 'no') + '">' + (ok ? '정답!' : '아쉬워요') + '</span>' +
       '<button class="fb-next" id="fbNext">다음</button></div>' +
       bodyHtml +
+      explanationHtml(c) +
+      optListHtml() +
+      sayRow(c) +
       '<div class="fb-srs">' + (ok ? '다음 복습: ' + nextDue + (rr.st >= MASTER_ST ? '' : ' · ' + rr.st + '단계') : '오답 등록 · 10분 뒤 다시 물어봐요') + '</div>';
     fb.hidden = false;
     $('#fbNext').addEventListener('click', advance);
+    var sb = $('#fbSay');
+    if (sb) sb.addEventListener('click', function () { speakExample(c); });
+    var sbs = $('#fbSaySlow');
+    if (sbs) sbs.addEventListener('click', function () { speakExample(c, true); });
     if (fb.scrollIntoView && fb.getBoundingClientRect().bottom > window.innerHeight) {
       fb.scrollIntoView({ block: 'nearest' });
     }
@@ -1290,6 +1514,7 @@
 
   /* ---- 플래시카드 ---- */
   function renderFlash(c) {
+    CUR_OPTS = []; CUR_ANSWER = '';
     var flip = $('#flipCard');
     flip.classList.remove('flipped');
     var conv = c._lv === 6;
@@ -1311,6 +1536,21 @@
     }
     $('#fcSpeak').hidden = !speakOk;
     $('#fcSpeak').onclick = function (e) { e.stopPropagation(); speak(conv ? c.w : (c.e || c.w)); };
+    var fslow = $('#fcSpeakSlow');
+    if (fslow) {
+      fslow.hidden = !speakOk;
+      fslow.onclick = function (e) { e.stopPropagation(); speak(conv ? c.w : (c.e || c.w), 0.75); };
+    }
+    var fex = $('#fcExSpeak');
+    if (fex) {
+      fex.hidden = !speakOk || !c.e;
+      fex.onclick = function (e) { e.stopPropagation(); speak(c.e || c.w); };
+    }
+    var fexs = $('#fcExSpeakSlow');
+    if (fexs) {
+      fexs.hidden = !speakOk || !c.e;
+      fexs.onclick = function (e) { e.stopPropagation(); speak(c.e || c.w, 0.75); };
+    }
     $('#fcSrs').textContent = srsInfo(c);
     $$('#gradeRow .grade').forEach(function (b) { b.disabled = false; });
     answered = false;
@@ -1363,34 +1603,40 @@
     }
     var gap = STAGE_GAP[r.st];
     r.due = r.st >= MASTER_ST ? 0 : Date.now() + (gap || MIN10);
+    S.answeredAt = S.i + 1;
     S.answers.push({ w: c.w, ok: ok });
     if (ok) S.correct++;
     if (!ok) {
       var agains = S.queue.filter(function (q) { return q.c.w === c.w && q.kind === 'again'; }).length;
-      if (agains < 2) {
+      if (agains < 2 && S.queue.length < SET_SIZE) {
         var pos = Math.min(S.queue.length, S.i + 4);
         S.queue.splice(pos, 0, { c: c, kind: 'again' });
       }
     }
-    save();
+    persistSession();
   }
 
   function advance() {
     if (!S) return;
     S.i++;
+    S.answeredAt = S.i;
+    persistSession();
     nextCard();
   }
 
   $('#studyBack').addEventListener('click', function () {
     if (S && S.i > 0 && S.i < S.queue.length) {
-      if (!confirm('학습을 그만두고 나갈까요? 지금까지의 기록은 저장돼요.')) return;
+      persistSession();
+      toast('여기까지 저장했어요 · 홈에서 이어서 풀 수 있어요');
     }
     S = null;
     showStudy(false);
-    renderHome();
+    showTab('home');
   });
 
   function endSession() {
+    store.session = null;
+    saveNow();
     var total = S.answers.length;
     var correct = S.correct;
     $('#studyProgress').style.width = '100%';
@@ -1577,14 +1823,20 @@
       (r && r.bad ? '<span class="pill">오답 ' + r.bad + '회</span>' : '') +
       '</div>' +
       '<div class="sheet-actions">' +
-      (speakOk ? '<button class="ghost-btn" id="shSpeak">🔊 발음</button>' : '') +
+      (speakOk ? '<button class="ghost-btn" id="shSpeak">🔊 ' + (c._lv === 6 ? '문장' : '발음') + '</button>' : '') +
+      (speakOk && c.e ? '<button class="ghost-btn" id="shExSpeak">🔊 예문</button>' : '') +
+      (speakOk && c.e ? '<button class="ghost-btn" id="shExSpeakSlow">🐢 0.75x</button>' : '') +
       '<button class="ghost-btn" id="shStar">' + (r && r.star ? '★ 북마크됨' : '☆ 북마크') + '</button>' +
       '<button class="ghost-btn" id="shStudy">이 카드 학습</button>' +
       '</div>';
     $('#sheetBackdrop').hidden = false;
     $('#sheet').hidden = false;
     var sp = $('#shSpeak');
-    if (sp) sp.onclick = function () { speak(c._lv === 6 ? c.w : (c.e || c.w)); };
+    if (sp) sp.onclick = function () { speak(c._lv === 6 ? c.w : c.w); };
+    var sx = $('#shExSpeak');
+    if (sx) sx.onclick = function () { speak(c.e, speedRate()); };
+    var sxs = $('#shExSpeakSlow');
+    if (sxs) sxs.onclick = function () { speak(c.e, 0.75); };
     $('#shStar').onclick = function () {
       var rr = rec(c.w);
       rr.star = rr.star ? 0 : 1;
@@ -1631,12 +1883,12 @@
     $('#sheet').hidden = false;
     $('#lvStart').onclick = function () {
       closeSheet();
-      var pool = items.filter(function (c) { var s = peek(c.w); return !s || (!s.seen && !s.star); }).slice(0, newLeft() || 20);
+      var pool = items.filter(function (c) { var s = peek(c.w); return !s || (!s.seen && !s.star); }).slice(0, SET_SIZE);
       var due = items.filter(function (c) { var s = peek(c.w); return s && s.st < MASTER_ST && s.due && s.due <= Date.now(); });
       var queue = [];
       var seen = {};
-      due.forEach(function (c) { if (!seen[c.w]) { seen[c.w] = 1; queue.push({ c: c, kind: 'due' }); } });
-      pool.forEach(function (c) { if (!seen[c.w]) { seen[c.w] = 1; queue.push({ c: c, kind: 'new' }); } });
+      due.slice(0, SET_SIZE).forEach(function (c) { if (!seen[c.w]) { seen[c.w] = 1; queue.push({ c: c, kind: 'due' }); } });
+      pool.forEach(function (c) { if (!seen[c.w] && queue.length < SET_SIZE) { seen[c.w] = 1; queue.push({ c: c, kind: 'new' }); } });
       if (!queue.length) { toast('이 단계는 학습할 카드가 없어요'); return; }
       S = { queue: queue, i: 0, mode: 'mix', answers: [], correct: 0, quizDir: store.settings.dir, label: 'Lv.' + lv + ' · ' + MODE_LABEL[store.settings.mode] };
       uiMode = store.settings.mode;
@@ -1723,7 +1975,7 @@
       box.appendChild(row);
     });
 
-    $('#newVal').textContent = store.settings.newPerDay;
+    $$('#newPick button').forEach(function (b) { b.classList.toggle('active', +b.dataset.n === +store.settings.newPerDay); });
     $$('#dirPick button').forEach(function (b) { b.classList.toggle('active', b.dataset.dir === store.settings.dir); });
     $('#levelPick').value = String(store.settings.level);
     var tg = $('#basicToggle');
@@ -1826,13 +2078,13 @@
     toast(store.settings.includeBasic ? 'Lv.1·2 왕기초도 함께 출제해요' : '프리셋 범위만 출제해요');
   });
 
-  $('#newMinus').addEventListener('click', function () {
-    store.settings.newPerDay = Math.max(5, store.settings.newPerDay - 5);
-    $('#newVal').textContent = store.settings.newPerDay; save();
-  });
-  $('#newPlus').addEventListener('click', function () {
-    store.settings.newPerDay = Math.min(100, store.settings.newPerDay + 5);
-    $('#newVal').textContent = store.settings.newPerDay; save();
+  $$('#newPick button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      store.settings.newPerDay = +b.dataset.n;
+      $$('#newPick button').forEach(function (x) { x.classList.toggle('active', x === b); });
+      save();
+      renderHome();
+    });
   });
   $$('#dirPick button').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -1928,6 +2180,883 @@
     }
   });
 
+  /* ================= 🗣️ 말하기 · 발음 교정 ================= */
+  var SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var SP = null;                 /* 지금 말하기 세션 */
+  var MIC = { rec: null, listening: false, text: '', onDone: null };
+  var spType = 'word';
+  var spLv = '0';
+
+  function micSupport() { return !!SRClass; }
+
+  function normWords(str) {
+    return String(str || '').toLowerCase()
+      .replace(/[\u2019']/g, "'")
+      .replace(/[^a-z0-9' ]/g, ' ')
+      .replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  }
+
+  function levDist(a, b) {
+    var m = a.length, n = b.length, i, j, prev = [], cur = [];
+    for (j = 0; j <= n; j++) prev[j] = j;
+    for (i = 1; i <= m; i++) {
+      cur = [i];
+      for (j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+
+  function simRatio(a, b) {
+    if (!a || !b) return 0;
+    return 1 - levDist(a, b) / Math.max(a.length, b.length);
+  }
+
+  /* 원문과 받아쓴 문장을 단어 단위로 맞춰 본다 (정확 일치 → 비슷한 발음 → 놓침) */
+  function alignSpeech(target, heard) {
+    var T = normWords(target), H = normWords(heard);
+    var n = T.length, m = H.length, i, j;
+    var dp = [];
+    for (i = 0; i <= n; i++) { dp.push([]); for (j = 0; j <= m; j++) dp[i].push(0); }
+    for (i = 1; i <= n; i++) {
+      for (j = 1; j <= m; j++) {
+        dp[i][j] = T[i - 1] === H[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    var match = {}, usedH = {};
+    i = n; j = m;
+    while (i > 0 && j > 0) {
+      if (T[i - 1] === H[j - 1]) { match[i - 1] = j - 1; usedH[j - 1] = 1; i--; j--; }
+      else if (dp[i - 1][j] >= dp[i][j - 1]) i--;
+      else j--;
+    }
+    var near = {};
+    T.forEach(function (w, ti) {
+      if (match[ti] != null) return;
+      var best = -1, bs = 0.55;
+      H.forEach(function (h, hj) {
+        if (usedH[hj]) return;
+        var s = simRatio(w, h);
+        if (s > bs) { bs = s; best = hj; }
+      });
+      if (best > -1) { near[ti] = best; usedH[best] = 1; }
+    });
+    var items = T.map(function (w, ti) {
+      if (match[ti] != null) return { word: w, state: 'ok', heard: H[match[ti]] };
+      if (near[ti] != null) return { word: w, state: 'near', heard: H[near[ti]], sim: Math.round(simRatio(w, H[near[ti]]) * 100) };
+      return { word: w, state: 'miss', heard: '' };
+    });
+    var extras = H.filter(function (h, hj) { return !usedH[hj]; });
+    var ok = 0, nr = 0;
+    items.forEach(function (x) { if (x.state === 'ok') ok++; else if (x.state === 'near') nr++; });
+    var score = n ? Math.round(((ok + nr * 0.6) / n) * 100) : 0;
+    if (extras.length) score = Math.max(0, score - Math.min(15, extras.length * 3));
+    return { items: items, extras: extras, score: score, target: T, heard: H, ok: ok, near: nr, miss: n - ok - nr };
+  }
+
+  function pronTips(words) {
+    var out = [];
+    function add(t) { if (t && out.indexOf(t) === -1) out.push(t); }
+    words.forEach(function (w) {
+      if (/th/.test(w)) add('th — 혀끝을 윗니 사이에 살짝 물고 바람을 내보냅니다.');
+      else if (/r/.test(w) && /l/.test(w)) add('r·l — r은 혀를 띄우고, l은 혀끝을 윗잇몸에 붙입니다.');
+      else if (/r/.test(w)) add('r — 혀끝을 입천장에 닿지 않게 두고 입술을 살짝 오므립니다.');
+      else if (/l/.test(w)) add('l — 혀끝을 윗잇몸에 붙이고 소리를 냅니다.');
+      if (/v/.test(w)) add('v — 윗니를 아랫입술에 대고 소리 냅니다(b가 아님).');
+      if (/f/.test(w)) add('f — 윗니와 아랫입술 사이로 바람만 내보냅니다(p가 아님).');
+      if (/z/.test(w)) add('z — 혀를 살짝 대고 떨림을 넣습니다(j가 아님).');
+      if (/(tion|sion)$/.test(w)) add('-tion — "션"보다 "shən"에 가깝게.');
+      if (/ed$/.test(w)) add('-ed — /t/·/d/·/ɪd/ 중 하나로 끝소리를 살립니다.');
+      if (/[bcdfgkpst]$/.test(w)) add('끝 자음 — 약하게라도 끊어 줘야 다른 단어로 인식되지 않습니다.');
+    });
+    return out.slice(0, 3);
+  }
+
+  function paintMic() {
+    var b = $('#micBtn');
+    if (!b) return;
+    b.classList.toggle('on', MIC.listening);
+    var hint = $('#micHint');
+    if (hint) hint.textContent = MIC.listening ? '듣는 중… 다 말하면 자동으로 채점해요' : '마이크를 눌러 따라 말하세요';
+    var live = $('#micLive');
+    if (live) live.textContent = MIC.listening ? MIC.text : '';
+  }
+
+  /* 한 번 듣고 끝나는 음성인식 — 말하기·회화방이 같이 쓴다 */
+  function listenOnce(onText, onEnd, onError) {
+    if (!SRClass) { if (onError) onError('unsupported'); return false; }
+    if (MIC.listening) { try { MIC.rec.stop(); } catch (e) {} return false; }
+    var rec;
+    try { rec = new SRClass(); } catch (e) { if (onError) onError('unsupported'); return false; }
+    MIC.rec = rec;
+    MIC.text = '';
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    var started = false;
+    rec.onstart = function () { started = true; MIC.listening = true; paintMic(); };
+    rec.onresult = function (ev) {
+      var txt = '';
+      for (var i = 0; i < ev.results.length; i++) txt += ev.results[i][0].transcript + ' ';
+      MIC.text = txt.replace(/\s+/g, ' ').trim();
+      var live = $('#micLive');
+      if (live) live.textContent = MIC.text;
+      if (onText) onText(MIC.text);
+    };
+    rec.onerror = function (ev) {
+      MIC.listening = false;
+      paintMic();
+      if (onError) onError(ev && ev.error ? ev.error : 'error');
+    };
+    rec.onend = function () {
+      MIC.listening = false;
+      paintMic();
+      if (onEnd) onEnd(MIC.text);
+    };
+    try { rec.start(); } catch (e) { if (onError) onError('start-failed'); return false; }
+    /* 마이크가 열리지 않은 채 조용히 끝나는 경우(권한 대기·장치 없음)를 안내한다 */
+    setTimeout(function () {
+      if (started || MIC.rec !== rec) return;
+      try { rec.stop(); } catch (e) {}
+      MIC.listening = false;
+      paintMic();
+      if (onError) onError('timeout');
+    }, 7000);
+    return true;
+  }
+
+  function micErrorText(code) {
+    if (code === 'unsupported') return '이 브라우저는 음성인식을 지원하지 않아요. Chrome(안드로이드)이나 Safari에서 열어 주세요.';
+    if (code === 'not-allowed' || code === 'service-not-allowed') return '마이크 권한이 거부됐어요. 브라우저 설정에서 마이크를 허용해 주세요.';
+    if (code === 'no-speech') return '소리가 잡히지 않았어요. 마이크에 조금 더 가까이 대고 다시 말해 주세요.';
+    if (code === 'network') return '음성인식 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+    if (code === 'timeout') return '마이크를 열지 못했어요. 브라우저 설정에서 마이크 권한을 허용해 주세요.';
+    return '음성인식을 시작하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+  }
+
+  function speakPool() {
+    var pool;
+    if (spLv === 'weak') pool = weakList();
+    else if (+spLv) pool = (LEVELS[+spLv] || []).slice();
+    else {
+      var mix = mixWeights();
+      pool = [];
+      mix.forEach(function (m) { pool = pool.concat(LEVELS[m.lv] || []); });
+      if (!pool.length) pool = allCards();
+    }
+    if (spType === 'sent') {
+      var sent = pool.filter(function (c) { return c._lv === 6 || (c.e && String(c.e).split(/\s+/).length >= 4); });
+      if (sent.length >= 5) pool = sent;
+    } else {
+      var words = pool.filter(function (c) { return c._lv !== 6; });
+      if (words.length >= 5) pool = words;
+    }
+    return pool;
+  }
+
+  function speakTargetOf(c) {
+    if (!c) return { en: '', ko: '' };
+    if (spType === 'sent') {
+      return c._lv === 6 ? { en: c.w, ko: c.m || '' } : { en: c.e || c.w, ko: c.k || '' };
+    }
+    return { en: c.w, ko: c.m || '' };
+  }
+
+  function renderSpeak() {
+    var note = $('#speakNote');
+    if (note) {
+      note.innerHTML = micSupport()
+        ? '마이크를 쓰려면 브라우저가 <b>마이크 권한</b>을 물어봅니다. 허용하면 바로 채점돼요.'
+        : '⚠️ 이 브라우저는 음성인식(SpeechRecognition)을 지원하지 않아요. Chrome 안드로이드·Safari에서 마이크를 쓸 수 있습니다. 대신 듣기·따라 읽기로 연습할 수 있어요.';
+    }
+    $$('#speakLv .chip').forEach(function (b) { b.classList.toggle('active', b.dataset.lv === spLv); });
+    $$('#speakType .seg').forEach(function (b) { b.classList.toggle('active', b.dataset.type === spType); });
+    var hist = $('#speakHist');
+    if (!hist) return;
+    var list = (store.speak || []).slice(0, 12);
+    if (!list.length) {
+      hist.innerHTML = '<h2 class="card-title">최근 말하기 기록</h2><p class="muted small">아직 기록이 없어요. 10문제만 말해 보면 점수가 쌓입니다.</p>';
+      return;
+    }
+    var avg = Math.round(list.reduce(function (s, x) { return s + (x.score || 0); }, 0) / list.length);
+    hist.innerHTML = '<h2 class="card-title">최근 말하기 기록 <span class="muted small">평균 ' + avg + '점</span></h2>' +
+      '<div class="hist-list">' + list.map(function (x) {
+        return '<div class="hist-row"><span class="hist-w">' + escapeHtml(x.w) + '</span>' +
+          '<span class="hist-sc ' + (x.score >= 80 ? 'good' : x.score >= 60 ? 'mid' : 'bad') + '">' + x.score + '점</span>' +
+          '<span class="hist-t">' + new Date(x.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + '</span></div>';
+      }).join('') + '</div>';
+  }
+
+  function startSpeak() {
+    var pool = speakPool();
+    if (!pool.length) { toast('연습할 카드가 없어요'); return; }
+    var pick = shuffle(pool.slice()).slice(0, SET_SIZE);
+    SP = { queue: pick, i: 0, results: [] };
+    $('#speakSetup').hidden = true;
+    $('#speakRun').hidden = false;
+    $('#speakHist').hidden = true;
+    $('#tabbar').hidden = true;
+    pushLayer();
+    speakShow();
+  }
+
+  function speakShow() {
+    if (!SP) return;
+    if (SP.i >= SP.queue.length) { speakFinish(); return; }
+    var c = SP.queue[SP.i];
+    var t = speakTargetOf(c);
+    $('#speakTarget').textContent = t.en;
+    $('#speakKo').textContent = t.ko;
+    $('#speakTarget').classList.toggle('sent', String(t.en).split(/\s+/).length > 3);
+    $('#speakTag').textContent = (spType === 'sent' ? '문장을 따라 말해 보세요' : '단어를 따라 말해 보세요') +
+      (tagOf(c) ? ' · ' + tagOf(c) : '');
+    $('#speakCounter').textContent = (SP.i + 1) + '/' + SP.queue.length;
+    $('#speakProg').style.width = Math.round(SP.i / SP.queue.length * 100) + '%';
+    $('#speakResult').hidden = true;
+    $('#micLive').textContent = '';
+    $('#micHint').textContent = '마이크를 눌러 따라 말하세요';
+    MIC.text = '';
+    if (speakOk) {
+      $('#speakListen').hidden = false;
+      $('#speakListenSlow').hidden = false;
+    }
+  }
+
+  function speakCheck(heard) {
+    if (!SP) return;
+    var c = SP.queue[SP.i];
+    var t = speakTargetOf(c);
+    var r = alignSpeech(t.en, heard);
+    SP.results.push({ score: r.score, w: t.en });
+    store.speak = store.speak || [];
+    store.speak.unshift({ w: t.en, score: r.score, at: Date.now(), type: spType });
+    store.speak = store.speak.slice(0, 60);
+    saveNow();
+
+    $('#speakResult').hidden = false;
+    $('#srScore').textContent = r.score;
+    $('#srSub').textContent = r.score >= 90 ? '거의 원어민 발음이에요.'
+      : r.score >= 75 ? '좋아요. 놓친 단어만 잡으면 됩니다.'
+      : r.score >= 50 ? '절반은 들렸어요. 빨간 단어를 천천히 다시 말해 보세요.'
+      : '인식된 단어가 적어요. 🐢 0.75x로 듣고 한 단어씩 따라 해 보세요.';
+    $('#srWords').innerHTML = r.items.map(function (x) {
+      var cls = x.state === 'ok' ? 'ok' : x.state === 'near' ? 'near' : 'miss';
+      return '<span class="sw ' + cls + '">' + escapeHtml(x.word) +
+        (x.state === 'near' ? '<em>' + escapeHtml(x.heard) + '</em>' : '') + '</span>';
+    }).join('');
+    $('#srHeard').textContent = r.heard.length
+      ? '들은 문장: ' + r.heard.join(' ') + (r.extras.length ? ' (덧붙임: ' + r.extras.join(' ') + ')' : '')
+      : '아무것도 인식되지 않았어요.';
+    var tips = pronTips(r.items.filter(function (x) { return x.state !== 'ok'; }).map(function (x) { return x.word; }));
+    if (!tips.length && r.score < 90) tips.push('단어를 붙여 한 호흡으로 말해 보세요. 끊어 읽으면 인식률이 떨어집니다.');
+    tips.push('점수는 브라우저 음성인식 결과 기준이라 실제 발음과 조금 다를 수 있어요.');
+    $('#srTips').innerHTML = tips.map(function (t) { return '<p class="tip"><i>💡</i>' + escapeHtml(t) + '</p>'; }).join('');
+    $('#speakResult').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function speakFinish() {
+    var n = SP ? SP.results.length : 0;
+    var avg = n ? Math.round(SP.results.reduce(function (s, x) { return s + x.score; }, 0) / n) : 0;
+    var bar = $('#speakCounter');
+    if (bar) bar.textContent = n + '/' + n;
+    $('#speakProg').style.width = '100%';
+    $('#speakTarget').textContent = '10문제 완료 · 평균 ' + avg + '점';
+    $('#speakKo').textContent = '수고했어요. 점수가 낮은 단어는 단어장에서 다시 들어 보세요.';
+    $('#speakResult').hidden = true;
+    toast('말하기 ' + n + '문제 · 평균 ' + avg + '점');
+    SP = { queue: [], i: 0, results: [] };
+  }
+
+  function endSpeakRun() {
+    SP = null;
+    $('#speakRun').hidden = true;
+    $('#speakSetup').hidden = false;
+    $('#speakHist').hidden = false;
+    showTab('speak');
+    $('#tabbar').hidden = false;
+  }
+
+  if ($('#speakStart')) {
+    $('#speakStart').addEventListener('click', startSpeak);
+    $$('#speakType .seg').forEach(function (b) {
+      b.addEventListener('click', function () {
+        spType = b.dataset.type;
+        $$('#speakType .seg').forEach(function (x) { x.classList.toggle('active', x === b); });
+      });
+    });
+    $$('#speakLv .chip').forEach(function (b) {
+      b.addEventListener('click', function () {
+        spLv = b.dataset.lv;
+        $$('#speakLv .chip').forEach(function (x) { x.classList.toggle('active', x === b); });
+      });
+    });
+    $('#speakExit').addEventListener('click', function () {
+      if (SP && SP.i > 0 && SP.i < SP.queue.length) toast('말하기 기록은 저장됐어요');
+      endSpeakRun();
+    });
+    $('#speakListen').addEventListener('click', function () {
+      if (SP) speak(speakTargetOf(SP.queue[SP.i]).en);
+    });
+    $('#speakListenSlow').addEventListener('click', function () {
+      if (SP) speak(speakTargetOf(SP.queue[SP.i]).en, 0.75);
+    });
+    $('#speakSpeedBtn').addEventListener('click', function () {
+      store.settings.speed = speedRate() === 0.75 ? 1 : 0.75;
+      $('#speakSpeedBtn').textContent = speedRate() === 0.75 ? '🐢 0.75x' : '🔊 1.0x';
+      save();
+    });
+    $('#speakSkip').addEventListener('click', function () {
+      if (!SP) return;
+      SP.i++;
+      speakShow();
+    });
+    $('#micBtn').addEventListener('click', function () {
+      if (!SP) return;
+      if (!micSupport()) { toast(micErrorText('unsupported')); return; }
+      if (MIC.listening) { try { MIC.rec.stop(); } catch (e) {} return; }
+      listenOnce(null, function (txt) {
+        if (!txt) { toast('아무것도 인식되지 않았어요. 다시 말해 보세요.'); return; }
+        speakCheck(txt);
+      }, function (err) { toast(micErrorText(err)); });
+    });
+    $('#srRetry').addEventListener('click', function () {
+      $('#speakResult').hidden = true;
+      MIC.text = '';
+      $('#micLive').textContent = '';
+      $('#micHint').textContent = '마이크를 눌러 다시 말하세요';
+    });
+    $('#srNext').addEventListener('click', function () {
+      if (!SP) return;
+      SP.i++;
+      speakShow();
+    });
+    $('#goSpeak').addEventListener('click', function () { goTab('speak'); });
+  }
+
+  /* ================= 💬 AI 회화방 ================= */
+  var CHAT_TOPICS = [
+    {
+      id: 'free', icon: '💬', name: '자유 대화', sub: '아무 주제나',
+      open: { en: 'Hi! Nice to talk with you. What would you like to talk about today?', ko: '안녕하세요! 오늘은 무슨 이야기를 해볼까요?' },
+      hints: ['I want to talk about my day.', 'Can we talk about travel?', 'I practiced English today.'],
+      script: [
+        { en: 'That sounds interesting. Tell me more about it.', ko: '흥미롭네요. 조금 더 말해 주세요.', hint: 'It was really fun because…' },
+        { en: 'I see. How did that make you feel?', ko: '그렇군요. 기분은 어땠어요?', hint: 'I felt happy / nervous / tired.' },
+        { en: 'Nice. What are you planning to do next?', ko: '좋네요. 다음엔 뭘 할 계획이에요?', hint: "I'm planning to…" }
+      ]
+    },
+    {
+      id: 'cafe', icon: '☕', name: '카페 주문', sub: '주문·사이즈·포장',
+      open: { en: 'Hi there! Welcome. What can I get for you?', ko: '어서 오세요! 무엇을 드릴까요?' },
+      hints: ['Can I get a large iced Americano, please?', "I'd like a latte, please.", 'Could I have a cappuccino?'],
+      script: [
+        { en: 'Sure. What size would you like — small, medium, or large?', ko: '네. 사이즈는 어떻게 하시겠어요?', hint: 'Large, please.' },
+        { en: 'Got it. For here or to go?', ko: '네. 드시고 가시나요, 포장인가요?', hint: 'To go, please.' },
+        { en: 'Anything else? We have fresh croissants today.', ko: '더 필요하세요? 오늘 크루아상이 나왔어요.', hint: 'No, that’s all. / I’ll take one.' },
+        { en: "That'll be five dollars fifty. Cash or card?", ko: '5달러 50센트입니다. 현금이세요, 카드세요?', hint: 'Card, please.' },
+        { en: 'Here you go. Have a nice day!', ko: '여기 있습니다. 좋은 하루 보내세요!', hint: 'Thank you, you too.' }
+      ]
+    },
+    {
+      id: 'airport', icon: '✈️', name: '공항·여행', sub: '체크인·수하물',
+      open: { en: 'Good morning. May I see your passport, please?', ko: '안녕하세요. 여권 좀 보여 주시겠어요?' },
+      hints: ['Here you are.', "Sure, here's my passport.", 'Yes, of course.'],
+      script: [
+        { en: 'Thank you. Where are you flying to today?', ko: '감사합니다. 오늘 어디로 가시나요?', hint: "I'm flying to New York." },
+        { en: 'Any bags to check?', ko: '부치실 짐이 있나요?', hint: 'Just this one, please.' },
+        { en: 'Window or aisle?', ko: '창가석과 통로석 중 어느 쪽으로 드릴까요?', hint: 'An aisle seat, please.' },
+        { en: 'Here is your boarding pass. Boarding starts at 10:20 at gate 14.', ko: '탑승권입니다. 10시 20분에 14번 게이트에서 탑승합니다.', hint: 'Thank you. Where is gate 14?' }
+      ]
+    },
+    {
+      id: 'biz', icon: '💼', name: '비즈니스 스몰토크', sub: '업무·일정·근황',
+      open: { en: 'Morning! How is the project going?', ko: '좋은 아침이에요! 프로젝트는 어떻게 되어 가요?' },
+      hints: ["It's going well, thanks.", "We're almost done.", "We hit a small delay."],
+      script: [
+        { en: 'Good to hear. Do you need anything from my side?', ko: '다행이네요. 제가 도와드릴 게 있을까요?', hint: 'Could you review the draft by Friday?' },
+        { en: 'Sure, I can do that. When is the deadline again?', ko: '그럼요. 마감이 언제였죠?', hint: "It's due on the 24th." },
+        { en: "Perfect. Let's sync tomorrow at ten.", ko: '좋아요. 내일 10시에 다시 얘기하죠.', hint: 'Works for me.' },
+        { en: 'Great. I will send you the invite.', ko: '좋습니다. 초대장 보내 드릴게요.', hint: 'Thanks, I appreciate it.' }
+      ]
+    },
+    {
+      id: 'daily', icon: '🙋', name: '일상 안부', sub: '근황·주말',
+      open: { en: 'Hey! Long time no see. How have you been?', ka: '', ko: '오랜만이야! 어떻게 지냈어?' },
+      hints: ["I've been busy but good.", "Pretty good, thanks. How about you?", "Not bad. How are you?"],
+      script: [
+        { en: 'Same here. Did you do anything fun on the weekend?', ko: '나도 그래. 주말에 재미있는 일 있었어?', hint: 'I went hiking with friends.' },
+        { en: 'That sounds great. How was the weather?', ko: '좋았겠다. 날씨는 어땠어?', hint: 'It was cold but sunny.' },
+        { en: 'Nice. We should do something together soon.', ko: '좋네. 조만간 같이 뭐 하자.', hint: 'Sure, let me know when you are free.' }
+      ]
+    },
+    {
+      id: 'restaurant', icon: '🍽️', name: '식당 예약', sub: '인원·시간·이름',
+      open: { en: 'Thank you for calling Bella Kitchen. How may I help you?', ko: '벨라 키친입니다. 무엇을 도와드릴까요?' },
+      hints: ["I'd like to make a reservation.", 'I want to book a table for two.', 'Can I reserve a table?'],
+      script: [
+        { en: 'Of course. For how many people?', ko: '네. 몇 분이세요?', hint: 'For four people, please.' },
+        { en: 'And what time would you like?', ko: '몇 시로 예약해 드릴까요?', hint: 'Seven thirty, please.' },
+        { en: 'May I have your name and phone number?', ko: '성함과 전화번호를 알려 주시겠어요?', hint: 'It’s Bumsoo, and my number is…' },
+        { en: 'You are all set for 7:30. We will see you then.', ko: '7시 30분으로 예약됐습니다. 그때 뵙겠습니다.', hint: 'Thank you. See you then.' }
+      ]
+    },
+    {
+      id: 'shopping', icon: '🛍️', name: '쇼핑·환불', sub: '교환·환불·영수증',
+      open: { en: 'Hi, how can I help you today?', ko: '안녕하세요, 무엇을 도와드릴까요?' },
+      hints: ['I want to return this shirt.', 'This item is too small.', 'Can I get a refund?'],
+      script: [
+        { en: 'I see. Do you have the receipt with you?', ko: '그렇군요. 영수증 가지고 계세요?', hint: 'Yes, here it is.' },
+        { en: 'Thank you. Was it worn or washed?', ko: '감사합니다. 입거나 세탁하셨나요?', hint: 'No, I only tried it on.' },
+        { en: 'Would you like a refund or an exchange?', ko: '환불과 교환 중 어느 쪽으로 해 드릴까요?', hint: 'I’d like a refund, please.' },
+        { en: 'No problem. It will be back on your card in three days.', ko: '문제없습니다. 3일 안에 카드로 환불됩니다.', hint: 'Thank you for your help.' }
+      ]
+    }
+  ];
+
+  /* --- 내장 교정기: 시제·관사·전치사·콩글리시를 잡고 더 자연스러운 문장을 제안 --- */
+  var KONGLISH = [
+    [/\bhand[ -]?phone\b/gi, 'cell phone', 'handphone은 콩글리시 — 미국식은 cell phone / 영국식은 mobile phone'],
+    [/\beye shopping\b/gi, 'window shopping', 'eye shopping은 콩글리시 — window shopping'],
+    [/\bskinship\b/gi, 'physical affection', 'skinship은 콩글리시 — physical affection / hugging'],
+    [/\bfighting\b/gi, 'you can do it', 'fighting은 콩글리시 — You can do it! / Go for it!'],
+    [/\bself[ -]?camera\b/gi, 'selfie', 'self camera는 콩글리시 — selfie'],
+    [/\bservice\b(?=\s+(is|was|free|charge))/gi, 'free of charge', 'service(서비스)는 콩글리시 — free / on the house'],
+    [/\bone[ -]?plus[ -]?one\b/gi, 'two for one', 'one plus one은 콩글리시 — two for one / buy one get one'],
+    [/\bnotebook\b(?=\s+(computer|pc)\b)/gi, 'laptop', 'notebook computer보다 laptop이 자연스럽습니다'],
+    [/\bdrink party\b/gi, 'get-together', 'drink party는 콩글리시 — get-together / drinks']
+  ];
+
+  var GRAMMAR_FIX = [
+    [/\b(i|we|they|you)\s+very\s+(like|love|enjoy|want)\b/gi, '$1 really $2', 'very는 동사를 꾸미지 못합니다 — really'],
+    [/\b(he|she|it)\s+very\s+(like|love|enjoy|want)s?\b/gi, '$1 really $2s', 'very는 동사를 꾸미지 못합니다 — really'],
+    [/\bdiscuss\s+about\b/gi, 'discuss', 'discuss는 타동사라 about을 쓰지 않습니다'],
+    [/\bexplain\s+me\b/gi, 'explain to me', 'explain 뒤에는 to + 사람이 옵니다'],
+    [/\bmarried\s+with\b/gi, 'married to', '결혼 상대는 be married to'],
+    [/\bdepend(s|ed)?\s+of\b/gi, 'depend$1 on', 'depend는 on과 씁니다'],
+    [/\barrive\s+to\b/gi, 'arrive at', 'arrive는 at(장소)/in(도시·나라)과 씁니다'],
+    [/\blisten\s+(music|the music)\b/gi, 'listen to $1', 'listen은 자동사라 to가 필요합니다'],
+    [/\bgo\s+to\s+home\b/gi, 'go home', 'home은 부사라 to를 쓰지 않습니다'],
+    [/\bcontact\s+to\s+me\b/gi, 'contact me', 'contact는 타동사라 to가 필요 없습니다'],
+    [/\breply\s+me\b/gi, 'reply to me', 'reply는 자동사라 to가 필요합니다'],
+    [/\bi\s+am\s+agree\b/gi, 'I agree', 'agree는 동사라 be동사를 쓰지 않습니다'],
+    [/\bmore\s+better\b/gi, 'better', 'better는 이미 비교급이라 more를 붙이지 않습니다'],
+    [/\bmost\s+(best|easiest|worst)\b/gi, '$1', '최상급에는 most를 겹쳐 쓰지 않습니다'],
+    [/\bdidn'?t\s+went\b/gi, "didn't go", 'didn’t 뒤에는 동사원형'],
+    [/\bhow\s+much\s+(is\s+it\s+cost|does\s+it\s+cost\s+is)\b/gi, 'how much does it cost', '의문문 어순을 확인하세요'],
+    [/\bhow\s+do\s+you\s+think\b/gi, 'what do you think', '의견을 물을 때는 What do you think?'],
+    [/\bi'?m\s+boring\b/gi, "I'm bored", 'boring은 남을 지루하게 하는 것, 내가 지루하면 bored'],
+    [/\bi'?m\s+exciting\b/gi, "I'm excited", 'exciting은 남을 흥분시키는 것, 내가 신나면 excited'],
+    [/\bi\s+very\s+like\b/gi, 'I really like', 'very는 동사를 꾸미지 못합니다'],
+    [/\bwant\s+that\s+you\b/gi, 'want you to', 'want는 to부정사를 받습니다'],
+    [/\bsuggest\s+me\b/gi, 'suggest to me', 'suggest 뒤에는 to + 사람'],
+    [/\bcall\s+to\s+me\b/gi, 'call me', 'call은 타동사라 to가 필요 없습니다'],
+    [/\blook\s+forward\s+to\s+(meet|see)\b/gi, 'look forward to $1', 'look forward to 뒤에는 동명사(-ing)'],
+    [/\bcan\s+you\s+repeat\s+again\b/gi, 'could you say that again', 'repeat에 again을 겹치지 않습니다'],
+    [/\b(i|we|they|you)\s+is\b/gi, function (m, p) { return (p.toLowerCase() === 'i' ? 'I am' : p + ' are'); }, '주어와 be동사를 맞춰야 합니다'],
+    [/\b(he|she|it)\s+are\b/gi, '$1 is', '주어와 be동사를 맞춰야 합니다']
+  ];
+
+  var PAST = { go: 'went', come: 'came', eat: 'ate', see: 'saw', meet: 'met', buy: 'bought', make: 'made', take: 'took', get: 'got', have: 'had', do: 'did', say: 'said', know: 'knew', think: 'thought', feel: 'felt', find: 'found', give: 'gave', tell: 'told', watch: 'watched', play: 'played', study: 'studied', work: 'worked', is: 'was', are: 'were', am: 'was', drink: 'drank', sleep: 'slept', read: 'read', write: 'wrote', drive: 'drove', run: 'ran', stay: 'stayed', visit: 'visited' };
+  var THIRD = { go: 'goes', do: 'does', have: 'has', want: 'wants', like: 'likes', need: 'needs', make: 'makes', take: 'takes', come: 'comes', eat: 'eats', see: 'sees', know: 'knows', think: 'thinks', feel: 'feels', get: 'gets', give: 'gives', say: 'says', watch: 'watches', play: 'plays', study: 'studies', work: 'works' };
+
+  function correctEnglish(text) {
+    var out = String(text || '').trim();
+    var notes = [];
+    function apply(re, rep, why) {
+      out = out.replace(re, function () {
+        var args = arguments;
+        var rep2 = typeof rep === 'function' ? rep.apply(null, args) : rep.replace(/\$(\d)/g, function (m2, d) { return args[+d] || ''; });
+        var from = args[0];
+        if (rep2 && rep2 !== from) notes.push({ from: from, to: rep2, why: why });
+        return rep2;
+      });
+    }
+    KONGLISH.forEach(function (r) { apply(r[0], r[1], r[2]); });
+    GRAMMAR_FIX.forEach(function (r) { apply(r[0], r[1], r[2]); });
+    /* 과거 시점 + 현재형 동사 */
+    if (/\b(yesterday|last (night|week|month|year)|ago)\b/i.test(out)) {
+      var best = null;
+      Object.keys(PAST).forEach(function (v) {
+        var re = new RegExp('(?<!to\\s)\\b' + v + '\\b', 'i');
+        var mm = re.exec(out);
+        if (mm && (!best || mm.index < best.index)) best = { v: v, index: mm.index, len: mm[0].length };
+      });
+      if (best) {
+        out = out.slice(0, best.index) + PAST[best.v] + out.slice(best.index + best.len);
+        notes.push({ from: best.v, to: PAST[best.v], why: '과거 시점(yesterday/last~)이 있어 동사를 과거형으로' });
+      }
+    }
+    /* 3인칭 단수 */
+    var m3 = out.match(/\b(he|she|it)\s+([a-z]+)\b/i);
+    if (m3 && THIRD[m3[2].toLowerCase()]) {
+      var rep3 = THIRD[m3[2].toLowerCase()];
+      var head3 = m3[0].split(/\s+/)[0];
+      out = out.replace(m3[0], head3 + ' ' + rep3);
+      notes.push({ from: m3[2], to: rep3, why: '3인칭 단수 주어에는 동사에 -s' });
+    }
+    out = out.replace(/\s+([,.!?])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+    if (out) out = out.charAt(0).toUpperCase() + out.slice(1);
+
+    /* 더 자연스러운 원어민 대안 — 규칙에 걸릴 때만 제안한다 */
+    var natural = '';
+    var low = out.toLowerCase();
+    if (/^i (want|need) (a |an |some )?(.+)$/.test(low)) {
+      natural = out.replace(/^I (want|need)/i, 'Could I get');
+      if (natural.indexOf('?') === -1) natural += ', please?';
+    } else if (/^give me (.+)$/i.test(out)) {
+      natural = out.replace(/^Give me (.+?)\.?$/i, 'Could I have $1, please?');
+    } else if (/^where is the (toilet|bathroom)\??$/i.test(out)) {
+      natural = 'Could you tell me where the restroom is?';
+    } else if (/^i don'?t know\.?$/i.test(out)) {
+      natural = "I'm not sure, actually.";
+    } else if (/^yes\.?$/i.test(out)) {
+      natural = 'Yes, please.';
+    } else if (/^no\.?$/i.test(out)) {
+      natural = 'No, thanks.';
+    }
+    return { corrected: out, notes: notes, natural: natural === out ? '' : natural };
+  }
+
+  var chatTopic = null;
+  var chatBusy = false;
+
+  function chatStore(id) {
+    store.chat = store.chat || {};
+    var t = store.chat[id];
+    if (!t) t = store.chat[id] = { turns: [], step: 0, at: Date.now() };
+    t.turns = t.turns || [];
+    return t;
+  }
+
+  function chatHistoryCount() {
+    var n = 0;
+    Object.keys(store.chat || {}).forEach(function (k) { n += (store.chat[k].turns || []).filter(function (t) { return t.role === 'me'; }).length; });
+    return n;
+  }
+
+  function renderChatTab() {
+    var grid = $('#topicGrid');
+    if (grid) {
+      grid.innerHTML = CHAT_TOPICS.map(function (t) {
+        var saved = (store.chat && store.chat[t.id] && store.chat[t.id].turns || []).filter(function (x) { return x.role === 'me'; }).length;
+        return '<button class="topic" data-t="' + t.id + '">' +
+          '<span class="topic-ico">' + t.icon + '</span>' +
+          '<span class="topic-name">' + t.name + '</span>' +
+          '<span class="topic-sub">' + t.sub + '</span>' +
+          (saved ? '<span class="topic-badge">' + saved + '문장</span>' : '') + '</button>';
+      }).join('');
+      $$('#topicGrid .topic').forEach(function (b) {
+        b.addEventListener('click', function () { openChat(b.dataset.t); });
+      });
+    }
+    var st = $('#chatStats');
+    if (st) {
+      var n = chatHistoryCount();
+      st.textContent = n ? '내가 말한 문장 ' + n + '개가 교정과 함께 저장돼 있어요.' : '아직 기록이 없어요. 주제를 골라 한마디만 해도 쌓입니다.';
+    }
+    var hist = $('#chatHistory');
+    if (hist) {
+      var rows = [];
+      CHAT_TOPICS.forEach(function (t) {
+        var s = store.chat && store.chat[t.id];
+        if (!s || !s.turns) return;
+        s.turns.forEach(function (x) { if (x.role === 'me') rows.push({ t: t, x: x }); });
+      });
+      rows.sort(function (a, b) { return b.x.at - a.x.at; });
+      hist.innerHTML = rows.length ? rows.slice(0, 30).map(function (r) {
+        var x = r.x;
+        return '<div class="hrow"><div class="hrow-top"><span class="hrow-topic">' + r.t.icon + ' ' + r.t.name + '</span>' +
+          '<span class="hrow-time">' + new Date(x.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + '</span></div>' +
+          '<p class="hrow-orig">' + escapeHtml(x.text) + '</p>' +
+          (x.corrected && x.corrected !== x.text ? '<p class="hrow-fix">→ ' + escapeHtml(x.corrected) + '</p>' : '') +
+          (x.notes && x.notes.length ? '<ul class="hrow-notes">' + x.notes.map(function (n) {
+            return '<li><b>' + escapeHtml(n.from) + '</b> → <b>' + escapeHtml(n.to) + '</b> · ' + escapeHtml(n.why) + '</li>';
+          }).join('') + '</ul>' : '<p class="hrow-ok">교정할 곳 없음</p>') +
+          '</div>';
+      }).join('') : '<p class="muted small">기록이 쌓이면 여기에서 한 번에 복습할 수 있어요.</p>';
+    }
+    /* AI 키 상태 */
+    var aiState = $('#aiState');
+    if (aiState) {
+      var on = store.settings.aiKey && store.settings.aiProvider !== 'none';
+      aiState.textContent = on
+        ? '연결됨: ' + (store.settings.aiProvider === 'gemini' ? 'Gemini' : 'OpenAI') + ' · ' + (store.settings.aiModel || '기본 모델') + ' (키는 이 기기에만 저장)'
+        : '지금은 내장 교정기로 대화합니다. 키를 넣으면 자유 대화·정밀 교정이 켜집니다.';
+    }
+    $$('#aiPick button').forEach(function (b) { b.classList.toggle('active', b.dataset.p === (store.settings.aiProvider || 'gemini')); });
+    if ($('#aiKey') && document.activeElement !== $('#aiKey')) $('#aiKey').value = store.settings.aiKey || '';
+    if ($('#aiModel') && document.activeElement !== $('#aiModel')) $('#aiModel').value = store.settings.aiModel || '';
+  }
+
+  function openChat(id) {
+    var t = CHAT_TOPICS.filter(function (x) { return x.id === id; })[0];
+    if (!t) return;
+    chatTopic = t;
+    $('#chatTopics').hidden = true;
+    $('#chatRoom').hidden = false;
+    $('#tabbar').hidden = true;
+    $('#chatTopicName').textContent = t.icon + ' ' + t.name;
+    $('#chatTopicSub').textContent = t.sub;
+    var st = chatStore(id);
+    if (!st.turns.length) {
+      st.turns.push({ role: 'ai', text: t.open.en, ko: t.open.ko, at: Date.now() });
+      st.step = 0;
+      saveNow();
+    }
+    paintChat();
+    pushLayer();
+  }
+
+  function closeChatRoom() {
+    chatTopic = null;
+    $('#chatRoom').hidden = true;
+    $('#chatTopics').hidden = false;
+    $('#tabbar').hidden = false;
+    renderChatTab();
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  function paintChat() {
+    if (!chatTopic) return;
+    var st = chatStore(chatTopic.id);
+    var log = $('#chatLog');
+    log.innerHTML = st.turns.map(function (m, idx) {
+      if (m.role === 'ai') {
+        return '<div class="msg ai"><div class="bubble">' + escapeHtml(m.text) +
+          (m.ko ? '<span class="bubble-ko">' + escapeHtml(m.ko) + '</span>' : '') + '</div></div>';
+      }
+      var fix = '';
+      if (m.corrected && m.corrected !== m.text) {
+        fix += '<div class="fix"><p class="fix-line">✏️ ' + escapeHtml(m.corrected) + '</p>' +
+          (m.notes && m.notes.length ? '<ul>' + m.notes.map(function (n) {
+            return '<li><b>' + escapeHtml(n.from) + '</b> → <b>' + escapeHtml(n.to) + '</b> · ' + escapeHtml(n.why) + '</li>';
+          }).join('') + '</ul>' : '') + '</div>';
+      }
+      if (m.natural) fix += '<div class="nat"><span>더 자연스럽게</span> ' + escapeHtml(m.natural) + '</div>';
+      if (fix) fix += '<button class="mini-say" data-say="' + idx + '">🔊 교정문 듣기</button>';
+      return '<div class="msg me"><div class="bubble">' + escapeHtml(m.text) + '</div>' + fix + '</div>';
+    }).join('');
+    $$('#chatLog [data-say]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var m = st.turns[+b.dataset.say];
+        if (m) speak(m.corrected || m.text);
+      });
+    });
+    var last = st.turns[st.turns.length - 1];
+    var sug = $('#chatSuggest');
+    if (sug) {
+      var hint = '';
+      if (last && last.role === 'ai') {
+        hint = st.lastHint || (chatTopic.script[Math.min(st.step, chatTopic.script.length - 1)] || {}).hint || '';
+      }
+      var chips = (hint ? [hint] : []).concat(chatTopic.hints || []).slice(0, 3);
+      sug.innerHTML = '<span class="sug-lbl">이렇게 말해보세요</span>' + chips.map(function (h) {
+        return '<button class="sug">' + escapeHtml(h) + '</button>';
+      }).join('');
+      $$('#chatSuggest .sug').forEach(function (b) {
+        b.addEventListener('click', function () { $('#chatText').value = b.textContent; $('#chatText').focus(); });
+      });
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function chatAiBuiltin(userText) {
+    var st = chatStore(chatTopic.id);
+    var script = chatTopic.script;
+    var idx = Math.min(st.step || 0, script.length - 1);
+    var step = script[idx];
+    st.step = (st.step || 0) + 1;
+    st.lastHint = step.hint || '';
+    var reply = { en: step.en, ko: step.ko };
+    /* 질문에는 먼저 짧게 답한다 */
+    if (/\?\s*$/.test(userText)) {
+      if (/where.*(gate|toilet|restroom|station)/i.test(userText)) reply = { en: 'It is just around the corner, on your left.', ko: '바로 모퉁이 왼쪽에 있어요.' };
+      else if (/how much|price|cost/i.test(userText)) reply = { en: 'It is about ten dollars.', ko: '10달러 정도예요.' };
+      else if (/how long|how far/i.test(userText)) reply = { en: 'It takes about ten minutes from here.', ko: '여기서 10분쯤 걸려요.' };
+      else if (/can you|could you|would you/i.test(userText)) reply = { en: 'Of course. Let me help you with that.', ko: '그럼요. 제가 도와드릴게요.' };
+    }
+    return reply;
+  }
+
+  function chatPrompt(userText) {
+    var sys = 'You are a friendly English conversation tutor for a Korean learner. ' +
+      'Stay in the situation: ' + chatTopic.name + '. ' +
+      'Reply naturally in English in 1-2 short sentences. Then write a line starting with "KO:" with a Korean translation. ' +
+      'If the learner\'s English has an error, add a line starting with "FIX:" with the corrected sentence, then "|", then a short Korean reason. ' +
+      'Then add "NEXT:" with one short English sentence the learner could say next.';
+    return sys + '\n\nLearner: ' + userText;
+  }
+
+  function chatAiLLM(userText) {
+    var prov = store.settings.aiProvider;
+    var key = store.settings.aiKey;
+    if (!key || prov === 'none') return Promise.reject(new Error('nokey'));
+    var model = store.settings.aiModel || (prov === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o-mini');
+    if (prov === 'gemini') {
+      var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(key);
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: chatPrompt(userText).split('\n\nLearner:')[0] }] },
+          contents: [{ role: 'user', parts: [{ text: userText }] }],
+          generationConfig: { temperature: 0.8, maxOutputTokens: 300 }
+        })
+      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || 'gemini ' + r.status); return j; }); })
+        .then(function (j) {
+          var txt = (((j.candidates || [])[0] || {}).content || {}).parts;
+          return txt && txt[0] ? txt[0].text : '';
+        });
+    }
+    return fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role: 'system', content: chatPrompt(userText).split('\n\nLearner:')[0] }, { role: 'user', content: userText }],
+        temperature: 0.8, max_tokens: 300
+      })
+    }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || 'openai ' + r.status); return j; }); })
+      .then(function (j) { return (((j.choices || [])[0] || {}).message || {}).content || ''; });
+  }
+
+  function parseLLM(raw) {
+    var en = [], ko = '', fix = '', next = '';
+    String(raw || '').split(/\n+/).forEach(function (line) {
+      var l = line.trim();
+      if (/^KO\s*:/i.test(l)) ko = l.replace(/^KO\s*:/i, '').trim();
+      else if (/^FIX\s*:/i.test(l)) fix = l.replace(/^FIX\s*:/i, '').trim();
+      else if (/^NEXT\s*:/i.test(l)) next = l.replace(/^NEXT\s*:/i, '').trim();
+      else if (l) en.push(l);
+    });
+    return { en: en.join(' ').trim(), ko: ko, fix: fix, next: next };
+  }
+
+  function chatSend(text) {
+    if (!chatTopic) return;
+    var msg = String(text || '').trim();
+    if (!msg) return;
+    if (chatBusy) return;
+    $('#chatText').value = '';
+    var st = chatStore(chatTopic.id);
+    var cor = correctEnglish(msg);
+    var me = { role: 'me', text: msg, corrected: cor.corrected, notes: cor.notes, natural: cor.natural, at: Date.now() };
+    st.turns.push(me);
+    saveNow();
+    paintChat();
+
+    chatBusy = true;
+    $('#chatNote').textContent = 'AI가 답하는 중…';
+    var finish = function (reply, fixLine) {
+      if (fixLine && (!me.notes || !me.notes.length)) {
+        var parts = fixLine.split('|');
+        if (parts[0] && parts[0].trim()) {
+          me.corrected = parts[0].trim();
+          me.notes = [{ from: me.text, to: me.corrected, why: (parts[1] || '더 자연스러운 표현').trim() }];
+        }
+      }
+      st.turns.push({ role: 'ai', text: reply.en, ko: reply.ko, at: Date.now() });
+      st.at = Date.now();
+      saveNow();
+      chatBusy = false;
+      $('#chatNote').textContent = 'Enter로 전송 · 마이크로 말하면 자동 입력';
+      paintChat();
+    };
+    if (store.settings.aiKey && store.settings.aiProvider !== 'none') {
+      chatAiLLM(msg).then(function (raw) {
+        var p = parseLLM(raw);
+        if (!p.en) throw new Error('empty');
+        if (p.next) chatTopic._lastNext = p.next;
+        finish({ en: p.en, ko: p.ko || '' }, p.fix);
+      }).catch(function (err) {
+        /* 키가 막히면 내장 엔진으로 이어서 대화한다 */
+        var r = chatAiBuiltin(msg);
+        finish(r, '');
+        toast('LLM 호출 실패(' + (err.message || err) + ') — 내장 대화로 이어갑니다');
+      });
+    } else {
+      setTimeout(function () { finish(chatAiBuiltin(msg), ''); }, 260);
+    }
+  }
+
+  if ($('#chatSend')) {
+    $('#chatSend').addEventListener('click', function () { chatSend($('#chatText').value); });
+    $('#chatText').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); chatSend(this.value); }
+    });
+    $('#chatBack').addEventListener('click', closeChatRoom);
+    $('#chatReset').addEventListener('click', function () {
+      if (!chatTopic) return;
+      if (!confirm('이 주제의 대화를 처음부터 다시 시작할까요? 기록도 지워집니다.')) return;
+      store.chat[chatTopic.id] = { turns: [], step: 0, at: Date.now() };
+      saveNow();
+      var t = chatTopic;
+      chatTopic = null;
+      openChat(t.id);
+    });
+    $('#chatMic').addEventListener('click', function () {
+      if (!micSupport()) { toast(micErrorText('unsupported')); return; }
+      var b = this;
+      b.classList.add('on');
+      listenOnce(function (t) { $('#chatText').value = t; },
+        function (t) {
+          b.classList.remove('on');
+          if (t) { $('#chatText').value = t; chatSend(t); }
+          else toast('아무것도 인식되지 않았어요. 다시 말해 보세요.');
+        },
+        function (err) { b.classList.remove('on'); toast(micErrorText(err)); });
+    });
+    $('#goChat').addEventListener('click', function () { goTab('chat'); });
+    $$('#aiPick button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        store.settings.aiProvider = b.dataset.p;
+        $$('#aiPick button').forEach(function (x) { x.classList.toggle('active', x === b); });
+        saveNow();
+        renderChatTab();
+      });
+    });
+    $('#aiSave').addEventListener('click', function () {
+      store.settings.aiKey = ($('#aiKey').value || '').trim();
+      store.settings.aiModel = ($('#aiModel').value || '').trim();
+      if (store.settings.aiProvider === 'none' && store.settings.aiKey) store.settings.aiProvider = 'gemini';
+      saveNow();
+      renderChatTab();
+      toast(store.settings.aiKey ? '키를 이 기기에만 저장했어요' : '키를 비웠어요 — 내장 대화로 동작합니다');
+    });
+    $('#aiClear').addEventListener('click', function () {
+      store.settings.aiKey = '';
+      store.settings.aiModel = '';
+      $('#aiKey').value = '';
+      $('#aiModel').value = '';
+      saveNow();
+      renderChatTab();
+      toast('키를 지웠어요');
+    });
+  }
+
+  /* ---------------- 홈: 이어서 풀기 ---------------- */
+  function renderResume() {
+    var box = $('#resumeCard');
+    if (!box) return;
+    var s = store.session;
+    var ok = s && s.words && s.i > 0 && s.i < s.words.length && (Date.now() - (s.at || 0) < 86400000);
+    box.hidden = !ok;
+    if (!ok) return;
+    $('#resumeText').textContent = (s.label || '학습') + ' · ' + s.i + '/' + s.words.length +
+      '까지 풀었어요 (정답 ' + (s.ok || 0) + '/' + (s.n || 0) + ')';
+  }
+  if ($('#resumeBtn')) {
+    $('#resumeBtn').addEventListener('click', function () { resumeSession(); });
+    $('#resumeDrop').addEventListener('click', function () {
+      store.session = null;
+      saveNow();
+      renderResume();
+    });
+  }
+
   /* ---------------- 시작 ---------------- */
   if (QA) {
     window.__QA = {
@@ -1949,7 +3078,37 @@
       },
       progress: function () { return stats(); },
       startConv: startConv,
-      setConvTag: function (t) { convTag = t; renderConv(); }
+      setConvTag: function (t) { convTag = t; renderConv(); },
+      /* v3.8 */
+      setSize: function () { return SET_SIZE; },
+      explainAll: function (lv) {
+        var out = [];
+        allCards().forEach(function (c) {
+          if (lv && c._lv !== lv) return;
+          out.push({ w: c.w, lv: c._lv, x: explanationOf(c) });
+        });
+        var seen = {}, dups = [];
+        out.forEach(function (o) { if (seen[o.x]) dups.push(o.w); seen[o.x] = 1; });
+        return { n: out.length, uniq: Object.keys(seen).length, dups: dups.slice(0, 10), sample: out.slice(0, 3) };
+      },
+      options: function () { return { opts: CUR_OPTS, answer: CUR_ANSWER }; },
+      align: function (t, h) { return alignSpeech(t, h); },
+      correct: function (t) { return correctEnglish(t); },
+      startSpeak: function (type, lv) { spType = type || 'word'; spLv = String(lv || '0'); startSpeak(); },
+      speakState: function () {
+        return SP ? { i: SP.i, n: SP.queue.length, target: SP.queue[SP.i] ? speakTargetOf(SP.queue[SP.i]).en : '', results: SP.results.slice() } : null;
+      },
+      speakCheck: function (t) { speakCheck(t); },
+      speakEnd: function () { endSpeakRun(); },
+      openChat: function (id) { openChat(id); },
+      chatSend: function (t) { chatSend(t); },
+      chatState: function () {
+        return chatTopic ? { id: chatTopic.id, turns: chatStore(chatTopic.id).turns.slice(), busy: chatBusy } : null;
+      },
+      chatClose: function () { closeChatRoom(); },
+      session: function () { return store.session; },
+      resume: function () { return resumeSession(); },
+      back: function () { history.back(); }
     };
   }
   paintSpeed();
