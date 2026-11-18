@@ -4,7 +4,7 @@
 **상황별 실전 회화 통문장 412개(Lv.6)** 를
 **4지선다 · 빈칸 채우기 · 문장 순서 맞추기 · 플래시카드**와 Anki식 간격 반복(SRS)으로 익히는 모바일 PWA.
 
-- **영구 배포(GitHub Pages, 2026-11-18 v3.8.0): https://keeper6305.github.io/english-vocab/** — 저장소 `keeper6305/english-vocab` (public, `main` 브랜치 루트 배포, HTTPS 강제)
+- **영구 배포(GitHub Pages, 2026-11-18 v3.8.1): https://keeper6305.github.io/english-vocab/** — 저장소 `keeper6305/english-vocab` (public, `main` 브랜치 루트 배포, HTTPS 강제)
 - 임시 배포(v2): **https://bygone-tenor-92xog.ship.place/** (2026-11-24 만료 — 영구 URL 로 대체)
 - 이전 배포(v1): `https://jagged-traffic-hy9eu.ship.place/` (2026-11-24 만료)
 - 난이도 프리셋: **중급(Lv.3·4) / 중상급(Lv.4·5) / 구문·패턴(Lv.5)** — 홈에서 원탭 전환
