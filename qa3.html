@@ -95,6 +95,19 @@ function mkFrame(w) {
   return f;
 }
 async function open(w) {
+  /* 앱 서비스워커를 먼저 끊는다 — 이전 캐시가 iframe 내비게이션을 가로채면
+     엉뚱한 문서(QA 페이지 등)가 뜨거나 캐시된 예전 app.js 가 섞인다 */
+  if (!open.cleaned) {
+    open.cleaned = true;
+    try {
+      var rs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(rs.map(function (r) { return r.unregister(); }));
+    } catch (e) {}
+    try {
+      var ks = await caches.keys();
+      await Promise.all(ks.map(function (k) { return caches.delete(k); }));
+    } catch (e) {}
+  }
   var f = mkFrame(w);
   /* iframe 은 about:blank → index.html 로 이동하므로 문서·윈도는 항상 새로 읽는다 */
   var ctx = {
@@ -1328,6 +1341,7 @@ async function sGradeTests(c) {
   while (q('#resultBox').hidden && guard++ < 24) await answerOne(c, guard % 3 !== 0);
   var rc = q('#rCombo').textContent;
   rec(c.w, '결과:콤보 요약', /최고 연속 정답 \d+ · 정답률 \d+% · 오늘 \d+문제/.test(rc), rc);
+  rec(c.w, '결과:모드 전환 숨김', q('#modeSwitch').hidden === true, 'hidden=' + q('#modeSwitch').hidden);
   var fin = qa.state().S;
   var wrongWords = [];
   (fin ? fin.answers : []).forEach(function (a) { if (!a.ok && wrongWords.indexOf(a.w) < 0) wrongWords.push(a.w); });
@@ -1340,6 +1354,7 @@ async function sGradeTests(c) {
     rec(c.w, '결과:틀린 카드부터 10문제', !q('#view-study').hidden && q('#studyCounter').textContent === '1/10' &&
       !!retryFirst && wrongWords.indexOf(retryFirst.w) > -1,
       'counter=' + q('#studyCounter').textContent + ' · 첫 카드=' + (retryFirst ? retryFirst.w : '?'));
+    rec(c.w, '결과:모드 전환 복귀', q('#modeSwitch').hidden === false, 'hidden=' + q('#modeSwitch').hidden);
     await leaveStudy(c);
   }
 

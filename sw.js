@@ -4,7 +4,7 @@
  * - css·아이콘 등 정적 자산: cache-first + 백그라운드 갱신 (오프라인에서도 즉시)
  * - VERSION 을 올리면 이전 버전 캐시는 activate 에서 전부 삭제
  */
-var VERSION = 'v3.9.2-gh';
+var VERSION = 'v4.0.1-gh';
 var CORE = [
   './',
   'index.html',
@@ -101,7 +101,10 @@ self.addEventListener('fetch', function (e) {
   var path = new URL(req.url).pathname;
 
   if (req.mode === 'navigate' || /\/$|\.html$/.test(path)) {
-    e.respondWith(networkFirst(req, 'index.html'));
+    /* 폴백 키는 그 페이지 자신 — 예전에는 모든 .html 이 'index.html' 키를 덮어써서
+       QA·촬영 페이지를 한 번 열면 앱 껍데기 캐시가 그 페이지로 바뀌었다 */
+    var navKey = /\/$/.test(path) || /\/index\.html$/.test(path) ? 'index.html' : path;
+    e.respondWith(networkFirst(req, navKey));
     return;
   }
   /* 문서와 같은 세대여야 하는 app.js·styles.css 도 네트워크 우선 — 새 index.html + 예전 app.js 로

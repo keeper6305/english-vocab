@@ -1,4 +1,4 @@
-/* 회화 영어 단어장 · 6,412 SRS — v4.0.0
+/* 회화 영어 단어장 · 6,412 SRS — v4.0.1
  * - 한 문제마다 즉시 저장(중간에 나가도 푼 만큼 반영) + 이어서 풀기
  * - 모든 학습 세트 10문제
  * - 예문 듣기(TTS, 0.75x/1.0x) · 문제별 맞춤 해설 + 보기(A~D) 뜻
@@ -1033,6 +1033,8 @@
     renderQuestion(current);
     paintStudyMeta();
     autoSayCard(current);
+    var ms = $('#modeSwitch');
+    if (ms) ms.hidden = false;
   }
 
   /* 세션 진행 도트 + 연속 정답 콤보 — 한 문제마다 눈에 보이는 보상(Duolingo식)
@@ -1851,6 +1853,7 @@
     $('#studyCounter').textContent = total + '/' + total;
     $('#quizBox').hidden = true;
     $('#cardBox').hidden = true;
+    $('#modeSwitch').hidden = true;
     $('#resultBox').hidden = false;
     $('#rCorrect').textContent = correct;
     $('#rTotal').textContent = total;

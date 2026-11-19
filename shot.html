@@ -11,6 +11,14 @@
 </style>
 </head>
 <body>
+<script>
+/* 개발용 페이지 — 이 페이지를 열 때는 앱 서비스워커를 잠시 끊어 예전 껍데기 캐시가
+   iframe 으로 흘러들지 않게 한다(앱 화면을 다시 열면 스스로 재등록된다) */
+if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+  navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+}
+if (window.caches) { caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }); }
+</script>
 <div class="devices">
   <div><iframe id="f390" width="390" height="844" src="index.html?qa=1"></iframe><div class="cap">390px</div></div>
   <div><iframe id="f360" width="360" height="844" src="index.html?qa=1"></iframe><div class="cap">360px</div></div>
