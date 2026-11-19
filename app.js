@@ -14,6 +14,16 @@
   var SET_SIZE = 10;          /* 모든 학습·퀴즈 세트는 10문제 */
   var NEW_OPTIONS = [5, 10, 15];  /* 하루 새 카드 선택지 — 20 이상은 두지 않는다 */
   var QA = /[?&]qa=1/.test(location.search);
+  /* QA 모드에서는 서비스워커·캐시가 개입하지 않게 정리한다 — 예전 배포 캐시가
+     iframe 내비게이션을 가로채 엉뚱한 화면(앱 껍데기)을 돌려주는 것을 막는다 */
+  if (QA && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (rs) {
+      rs.forEach(function (r) { r.unregister(); });
+    }).catch(function () {});
+    if (window.caches) {
+      caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }).catch(function () {});
+    }
+  }
   var DAY = 86400000;
   var MIN10 = 600000;
   /* SRS 사다리 (Anki/SM-2 검증 방식): 오답 10분 → 1 → 3 → 7 → 14 → 30일 → 마스터(60일+) */

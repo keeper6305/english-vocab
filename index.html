@@ -592,7 +592,7 @@
       });
     }, 60);
   });
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !/[?&]qa=1/.test(location.search)) {
     addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
 </script>
