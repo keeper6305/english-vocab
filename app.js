@@ -1,11 +1,11 @@
-/* 회화 영어 단어장 · 6,412 SRS — v3.9.1
+/* 회화 영어 단어장 · 6,412 SRS — v4.0.0
  * - 한 문제마다 즉시 저장(중간에 나가도 푼 만큼 반영) + 이어서 풀기
  * - 모든 학습 세트 10문제
- * - 예문 듣기(TTS, 0.75x/1.0x)
- * - 문제별 맞춤 해설 + 보기(A~D) 뜻
- * - 🗣️ 말하기·발음 교정 (Web Speech API)
+ * - 예문 듣기(TTS, 0.75x/1.0x) · 문제별 맞춤 해설 + 보기(A~D) 뜻
+ * - 🗣️ 말하기·발음 교정 (Web Speech API) · 해설에서 바로 「따라 말하기」
  * - 💬 AI 회화방 (주제별 시나리오 + 내장 교정기 + 선택 LLM)
  * - 안드로이드 뒤로가기 2단계
+ * - v4.0: 오늘 목표 게이지 · 복습 예보 · 세션 콤보/진행 도트 · 틀린 카드만 다시
  */
 (function () {
   'use strict';
@@ -20,6 +20,8 @@
   var STAGE_LABEL = ['10분 뒤', '1일 뒤', '3일 뒤', '7일 뒤', '14일 뒤', '30일 뒤', '마스터'];
   var STAGE_GAP = [MIN10, DAY, 3 * DAY, 7 * DAY, 14 * DAY, 30 * DAY, 0];
   var MASTER_ST = 6;
+  /* 오늘 목표 — 새 카드 몫의 2배(최소 10문제). 하루 두 세트면 채워진다 */
+  function dailyGoal() { return Math.max(10, (+store.settings.newPerDay || 10) * 2); }
 
   /* 난이도 프리셋 — 기본은 중상급(Lv.4·5) */
   var PRESETS = {
@@ -72,7 +74,7 @@
       v: 1, cards: {}, stats: {}, modes: {}, speak: [], chat: {}, session: null,
       settings: {
         newPerDay: 10, dir: 'w2m', level: 0, theme: null, includeBasic: false,
-        preset: 'upper', mode: 'quiz', speed: 1, order: 'imp',
+        preset: 'upper', mode: 'quiz', speed: 1, order: 'imp', autoSay: false,
         aiProvider: 'gemini', aiKey: '', aiModel: ''
       },
       newDay: null, newCount: 0
@@ -631,6 +633,51 @@
     renderResume();
   }
 
+  /* ---------------- 오늘 목표 · 복습 예보 ---------------- */
+  /* 벤치마킹(Speak 홈 · Duolingo 스트리크): "지금 어디까지 왔고, 다음은 뭐고, 남은 게 얼마인지"를
+     홈 첫 화면에서 바로 보이게 한다. 값은 모두 이미 저장된 학습 기록에서 계산한다. */
+  function renderGoal() {
+    var box = $('#goalBox');
+    if (!box) return;
+    var goal = dailyGoal();
+    var n = todayStats().n || 0;
+    var p = Math.min(100, Math.round(n / goal * 100));
+    $('#goalLbl').textContent = '오늘 목표 ' + goal + '문제';
+    $('#goalVal').textContent = n + ' / ' + goal;
+    $('#goalBar').style.width = p + '%';
+    box.classList.toggle('done', n >= goal);
+    var left = Math.max(0, goal - n);
+    $('#goalNote').textContent = n >= goal
+      ? '오늘 목표 달성 · 이어서 해도 좋아요'
+      : (left <= SET_SIZE ? '한 세트(' + left + '문제)만 더 하면 오늘 몫 완료' : '10문제면 약 3분 · ' + left + '문제 남았어요');
+  }
+
+  function renderForecast() {
+    var box = $('#forecast');
+    if (!box) return;
+    var now = Date.now();
+    var d0 = dayStart();
+    var endToday = d0 + DAY, endTomorrow = d0 + 2 * DAY, endWeek = d0 + 7 * DAY;
+    var b = { now: 0, today: 0, tomorrow: 0, week: 0 };
+    Object.keys(store.cards || {}).forEach(function (k) {
+      var r = store.cards[k];
+      if (!r || r.st >= MASTER_ST || !r.due) return;
+      if (r.due <= now) b.now++;
+      else if (r.due < endToday) b.today++;
+      else if (r.due < endTomorrow) b.tomorrow++;
+      else if (r.due < endWeek) b.week++;
+    });
+    if (!b.now && !b.today && !b.tomorrow && !b.week) {
+      box.innerHTML = '<span class="fc-lbl">복습 예보</span><span class="fc-chip">아직 예약된 복습이 없어요 — 한 세트 풀면 생깁니다</span>';
+      return;
+    }
+    box.innerHTML = '<span class="fc-lbl">복습 예보</span>' +
+      '<span class="fc-chip' + (b.now ? ' hot' : '') + '">지금 <b>' + b.now + '</b></span>' +
+      '<span class="fc-chip">오늘 <b>' + b.today + '</b></span>' +
+      '<span class="fc-chip">내일 <b>' + b.tomorrow + '</b></span>' +
+      '<span class="fc-chip">이번 주 <b>' + b.week + '</b></span>';
+  }
+
   /* ---------------- 오늘의 학습 · 모드별 기록 ---------------- */
   function renderToday() {
     var ts = todayStats();
@@ -656,6 +703,8 @@
     $('#todayBar').style.width = sp + '%';
     $('#todayProg').textContent = '전체 진도 ' + st.studied.toLocaleString() + ' / ' + deck.toLocaleString() +
       ' (' + sp + '%) · 마스터 ' + st.mastered.toLocaleString() + '개';
+    renderGoal();
+    renderForecast();
   }
 
   function setPreset(p) {
@@ -977,9 +1026,46 @@
     if (S.i >= S.queue.length) { endSession(); return; }
     var item = S.queue[S.i];
     current = item.c;
+    if (S.combo == null) S.combo = 0;
+    if (S.best == null) S.best = 0;
     $('#studyProgress').style.width = Math.round(S.i / Math.max(1, S.queue.length) * 100) + '%';
     $('#studyCounter').textContent = (S.i + 1) + '/' + S.queue.length;
     renderQuestion(current);
+    paintStudyMeta();
+    autoSayCard(current);
+  }
+
+  /* 세션 진행 도트 + 연속 정답 콤보 — 한 문제마다 눈에 보이는 보상(Duolingo식)
+     도트는 문제 객체에 직접 표시를 남겨, 오답 재삽입으로 순서가 밀려도 어긋나지 않는다 */
+  function paintStudyMeta() {
+    var box = $('#studyDots');
+    if (box) {
+      var html = '';
+      (S ? S.queue : []).forEach(function (q, i) {
+        var cls = 'dot';
+        if (q.mark === 2) cls += ' ok';
+        else if (q.mark === 0) cls += ' no';
+        else if (i === S.i) cls += ' cur';
+        html += '<i class="' + cls + '"></i>';
+      });
+      box.innerHTML = html;
+    }
+    var pill = $('#comboPill');
+    if (pill) {
+      var n = S && S.combo ? S.combo : 0;
+      pill.hidden = n < 2;
+      pill.textContent = '🔥 ' + n;
+      pill.classList.toggle('hot', n >= 4);
+    }
+  }
+
+  /* 설정에서 켜면 문제가 뜰 때 발음을 바로 들려준다 (Speak식 듣기 우선) */
+  function autoSayCard(c) {
+    if (!store.settings.autoSay || !speakOk || !c) return;
+    clearTimeout(autoSayCard._t);
+    autoSayCard._t = setTimeout(function () {
+      if (S && current === c && !answered) speak(c.w);
+    }, 340);
   }
 
   /* ---- 현재 카드에 쓸 수 있는 모드 ---- */
@@ -1571,7 +1657,35 @@
     return '<div class="fb-say">' +
       '<button class="ghost-btn small" id="fbSay">🔊 ' + label + ' 듣기</button>' +
       '<button class="ghost-btn small" id="fbSaySlow">🐢 0.75x</button>' +
-      '</div>';
+      (micSupport() ? '<button class="ghost-btn small shadow-btn" id="fbShadow">🎤 따라 말하기</button>' : '') +
+      '</div>' +
+      (micSupport() ? '<p class="fb-shadow-out" id="fbShadowOut" hidden></p>' : '');
+  }
+
+  /* 해설에서 바로 쉐도잉 — 듣고 따라 말하면 그 자리에서 점수(Speak의 핵심 루프) */
+  function shadowSpeak(c, btn) {
+    var target = c && (c._lv === 6 ? c.w : (c.e || c.w));
+    if (!target) return;
+    if (!micSupport()) { toast(micErrorText('unsupported')); return; }
+    var out = $('#fbShadowOut');
+    btn.classList.add('on');
+    if (out) { out.hidden = false; out.textContent = '듣고 따라 말해 보세요…'; }
+    listenOnce(null, function (txt) {
+      btn.classList.remove('on');
+      if (!out) return;
+      out.hidden = false;
+      if (!txt) { out.textContent = '아무것도 인식되지 않았어요. 마이크에 조금 더 가까이 대고 다시 말해 보세요.'; return; }
+      var r = alignSpeech(target, txt);
+      out.innerHTML = '<b class="' + (r.score >= 80 ? 'ok-t' : r.score >= 55 ? 'mid-t' : 'bad-t') + '">' + r.score + '점</b> ' +
+        r.items.map(function (x) {
+          var cls = x.state === 'ok' ? 'ok-t' : x.state === 'near' ? 'mid-t' : 'bad-t';
+          return '<span class="' + cls + '">' + escapeHtml(x.word) + '</span>';
+        }).join(' ') +
+        (r.heard.length ? '<span class="muted small"> · 들은 문장: ' + escapeHtml(r.heard.join(' ')) + '</span>' : '');
+    }, function (err) {
+      btn.classList.remove('on');
+      if (out) { out.hidden = false; out.textContent = micErrorText(err); }
+    });
   }
 
   /* ---------------- 피드백 공통 ---------------- */
@@ -1591,6 +1705,8 @@
     if (sb) sb.addEventListener('click', function () { speakExample(c); });
     var sbs = $('#fbSaySlow');
     if (sbs) sbs.addEventListener('click', function () { speakExample(c, true); });
+    var sh = $('#fbShadow');
+    if (sh) sh.addEventListener('click', function () { shadowSpeak(c, this); });
     if (fb.scrollIntoView && fb.getBoundingClientRect().bottom > window.innerHeight) {
       fb.scrollIntoView({ block: 'nearest' });
     }
@@ -1664,6 +1780,7 @@
   function grade(c, quality) {
     var r = rec(c.w);
     var first = r.seen === 0 && r.t === 0;
+    var wasMaster = r.st >= MASTER_ST;
     r.seen++;
     r.t = Date.now();
     var ts = todayStats();
@@ -1691,6 +1808,10 @@
     S.answeredAt = S.i + 1;
     S.answers.push({ w: c.w, ok: ok });
     if (ok) S.correct++;
+    /* 이 문제 자리에 결과 표시 + 세션 콤보 */
+    if (S.queue[S.i]) S.queue[S.i].mark = ok ? 2 : 0;
+    S.combo = ok ? (S.combo || 0) + 1 : 0;
+    if ((S.combo || 0) > (S.best || 0)) S.best = S.combo;
     if (!ok) {
       var agains = S.queue.filter(function (q) { return q.c.w === c.w && q.kind === 'again'; }).length;
       if (agains < 2 && S.queue.length < SET_SIZE) {
@@ -1699,6 +1820,8 @@
       }
     }
     persistSession();
+    paintStudyMeta();
+    if (ok && !wasMaster && r.st >= MASTER_ST) toast('마스터! 「' + c.w + '」 60일 유지 단계');
   }
 
   function advance() {
@@ -1734,6 +1857,9 @@
     var pct = total ? Math.round(correct / total * 100) : 0;
     $('#rSub').textContent = (S.label ? S.label + ' · ' : '') +
       (pct >= 90 ? '완벽해요. 다음 복습 주기가 잡혔어요.' : pct >= 60 ? '좋아요. 틀린 카드는 10분 뒤 다시 나와요.' : '오늘은 여기까지. 틀린 카드부터 다시 봐요.');
+    var goalN = todayStats().n || 0;
+    var rc = $('#rCombo');
+    if (rc) rc.textContent = '최고 연속 정답 ' + (S.best || 0) + ' · 정답률 ' + pct + '% · 오늘 ' + goalN + '/' + dailyGoal() + '문제';
     var list = $('#rList');
     list.innerHTML = '';
     var seen = {};
@@ -1747,6 +1873,20 @@
       list.appendChild(d);
     });
     var finished = S;
+    /* 틀린 카드만 모아 10문제 한 세트 — Duolingo·Speak가 대화 끝에 지적한 것만 다시 물어보는 방식 */
+    var wrongs = [];
+    var seenW = {};
+    S.answers.forEach(function (a) {
+      if (!a.ok && !seenW[a.w]) { seenW[a.w] = 1; wrongs.push(a.w); }
+    });
+    var rb = $('#rWeak');
+    if (rb) {
+      rb.hidden = !wrongs.length;
+      if (wrongs.length) {
+        rb.textContent = '틀린 ' + wrongs.length + '개만 다시';
+        rb.onclick = function () { S = null; startRetry(wrongs); };
+      }
+    }
     $('#rAgain').onclick = function () {
       S = null;
       /* 「10문제 더」는 방금 끝낸 그 학습을 그대로 이어간다 (단계·구문·회화·새 카드·오답 모두) */
@@ -1758,6 +1898,31 @@
     };
     $('#rHome').onclick = function () { S = null; showStudy(false); showTab('home'); };
     save();
+  }
+
+  /* 방금 틀린 카드부터 다시 — 나머지는 오답 노트·안 본 카드로 10문제를 채운다 */
+  function startRetry(words) {
+    var queue = [];
+    var used = {};
+    function push(c, kind) {
+      if (!c || queue.length >= SET_SIZE) return;
+      var k = c.w.toLowerCase();
+      if (used[k]) return;
+      used[k] = 1;
+      queue.push({ c: c, kind: kind });
+    }
+    (words || []).forEach(function (w) { push(cardByW(w), 'again'); });
+    weakList().forEach(function (c) { push(c, 'weak'); });
+    setRank(stagePool()).forEach(function (c) { push(c, 'review'); });
+    if (!queue.length) { toast('다시 풀 카드가 없어요'); return; }
+    S = {
+      queue: queue, i: 0, mode: 'retry', answers: [], correct: 0,
+      quizDir: store.settings.dir, label: '틀린 카드 ' + (words || []).length + '개부터'
+    };
+    uiMode = store.settings.mode;
+    setUiMode(uiMode);
+    showStudy(true);
+    nextCard();
   }
 
   /* 속도 · 모드 버튼 */
@@ -1939,7 +2104,22 @@
     };
     $('#shStudy').onclick = function () {
       closeSheet();
-      S = { queue: [{ c: c, kind: 'one' }], i: 0, mode: 'one', answers: [], correct: 0, quizDir: store.settings.dir, label: MODE_LABEL[store.settings.mode] };
+      /* 이 카드부터 10문제 — 나머지는 같은 단계의 복습·안 본 카드로 채운다 */
+      var queue = [{ c: c, kind: 'one' }];
+      var used = {};
+      used[c.w.toLowerCase()] = 1;
+      function fill(list) {
+        (list || []).forEach(function (q) {
+          if (queue.length >= SET_SIZE) return;
+          var k = q.c.w.toLowerCase();
+          if (used[k]) return;
+          used[k] = 1;
+          queue.push(q);
+        });
+      }
+      fill(makeSet(LEVELS[c._lv] || [], 'mix'));
+      if (queue.length < SET_SIZE) fill(makeSet(stagePool(), 'mix'));
+      S = { queue: queue, i: 0, mode: 'one', answers: [], correct: 0, quizDir: store.settings.dir, label: '「' + c.w + '」부터' };
       uiMode = store.settings.mode === 'card' ? 'card' : store.settings.mode;
       setUiMode(uiMode);
       showStudy(true);
@@ -2079,6 +2259,8 @@
     $('#levelPick').value = String(store.settings.level);
     var tg = $('#basicToggle');
     if (tg) { tg.classList.toggle('on', !!store.settings.includeBasic); tg.setAttribute('aria-checked', store.settings.includeBasic ? 'true' : 'false'); }
+    var as = $('#autoSayToggle');
+    if (as) { as.classList.toggle('on', !!store.settings.autoSay); as.setAttribute('aria-checked', store.settings.autoSay ? 'true' : 'false'); }
     var mnote = $('#mixNote');
     if (mnote) mnote.textContent = mixLabel(true);
     paintSpeed();
@@ -2176,6 +2358,17 @@
     renderHome();
     toast(store.settings.includeBasic ? 'Lv.1·2 왕기초도 함께 출제해요' : '프리셋 범위만 출제해요');
   });
+
+  var asT = $('#autoSayToggle');
+  if (asT) {
+    asT.addEventListener('click', function () {
+      store.settings.autoSay = !store.settings.autoSay;
+      this.classList.toggle('on', store.settings.autoSay);
+      this.setAttribute('aria-checked', store.settings.autoSay ? 'true' : 'false');
+      save();
+      toast(store.settings.autoSay ? '문제가 뜨면 발음을 바로 들려줘요' : '자동 발음을 꼈어요');
+    });
+  }
 
   $$('#newPick button').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -3263,6 +3456,26 @@
       chatClose: function () { closeChatRoom(); },
       session: function () { return store.session; },
       resume: function () { return resumeSession(); },
+      /* v4.0 */
+      goal: function () {
+        return {
+          goal: dailyGoal(), n: (todayStats().n || 0), val: $('#goalVal').textContent,
+          width: $('#goalBar').style.width, done: $('#goalBox').classList.contains('done'),
+          note: $('#goalNote').textContent
+        };
+      },
+      forecast: function () { return $('#forecast') ? $('#forecast').textContent : ''; },
+      combo: function () {
+        return {
+          combo: (S && S.combo) || 0, best: (S && S.best) || 0,
+          pill: $('#comboPill') ? !$('#comboPill').hidden : false,
+          dots: $$('#studyDots i').length,
+          marks: S ? S.queue.map(function (q) { return q.mark == null ? -1 : q.mark; }) : []
+        };
+      },
+      startRetry: startRetry,
+      setAutoSay: function (v) { store.settings.autoSay = !!v; },
+      hasShadow: function () { return !!$('#fbShadow'); },
       back: function () { history.back(); }
     };
   }

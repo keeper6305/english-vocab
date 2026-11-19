@@ -59,6 +59,15 @@
         </div>
         <p class="preset-desc" id="presetDesc">Lv.4·5 집중 · B2·C1 + 구동사·구문</p>
 
+        <div class="goal" id="goalBox">
+          <div class="goal-head">
+            <span id="goalLbl">오늘 목표 20문제</span>
+            <span id="goalVal">0 / 20</span>
+          </div>
+          <div class="goal-bar"><i id="goalBar"></i></div>
+          <p class="goal-note" id="goalNote">10문제면 3분 — 한 세트만 더 하면 오늘 몫 완료</p>
+        </div>
+
         <p class="hero-sub" id="heroSub">새 카드 10개로 시작해 보세요.</p>
         <button class="primary-btn" id="startBtn">학습 시작</button>
         <div class="mode-pick" id="modePick">
@@ -83,6 +92,7 @@
           <span class="today-new" id="tTodayNew">새 카드 0개</span>
         </div>
         <div class="mode-table-box" id="modeTable"></div>
+        <div class="forecast" id="forecast"></div>
         <div class="today-progress"><i id="todayBar"></i></div>
         <p class="muted small today-prog" id="todayProg">전체 진도 0 / 6,412 (0%)</p>
       </div>
@@ -161,6 +171,10 @@
         <div class="progress"><span id="studyProgress"></span></div>
         <span class="counter" id="studyCounter">0/0</span>
         <button class="speed-btn" id="speedBtn" aria-label="듣기 속도 전환">🔊 1.0x</button>
+      </div>
+      <div class="study-dots-row">
+        <div class="study-dots" id="studyDots" aria-hidden="true"></div>
+        <span class="combo" id="comboPill" hidden>🔥 0</span>
       </div>
 
       <div class="mode-switch" id="modeSwitch">
@@ -264,7 +278,9 @@
         <p class="eyebrow">세션 완료</p>
         <p class="result-num"><span id="rCorrect">0</span>/<span id="rTotal">0</span></p>
         <p class="result-sub" id="rSub"></p>
+        <p class="result-combo" id="rCombo"></p>
         <div class="result-list" id="rList"></div>
+        <button class="ghost-btn wide weak-again" id="rWeak" hidden>틀린 카드만 다시</button>
         <button class="primary-btn" id="rAgain">10문제 더 풀기</button>
         <button class="ghost-btn wide" id="rHome">홈으로</button>
       </div>
@@ -485,6 +501,10 @@
             <button data-speed="1" class="active">🔊 보통</button>
             <button data-speed="0.75">🐢 천천히</button>
           </div>
+        </div>
+        <div class="setting-row">
+          <div><b>카드 자동 발음</b><span class="muted">문제가 뜨면 발음을 바로 들려줍니다</span></div>
+          <button class="toggle" id="autoSayToggle" role="switch" aria-checked="false" aria-label="카드 자동 발음"><i></i></button>
         </div>
         <div class="setting-row">
           <div><b>기본 단계</b><span class="muted">프리셋 대신 한 단계만</span></div>
