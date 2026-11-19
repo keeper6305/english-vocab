@@ -53,7 +53,7 @@ async function drive(f) {
     } else if (state === 'combo') {
       q('#startBtn').click(); await sleep(300);
       for (let i = 0; i < 4; i++) { answer(true); await sleep(90); if (q('#fbNext')) q('#fbNext').click(); await sleep(90); }
-      answer(true); await sleep(300);
+      w.scrollTo(0, 0); await sleep(200);
     } else if (state === 'feedback') {
       q('#startBtn').click(); await sleep(300);
       answer(false); await sleep(400);
