@@ -1859,7 +1859,8 @@
       (pct >= 90 ? '완벽해요. 다음 복습 주기가 잡혔어요.' : pct >= 60 ? '좋아요. 틀린 카드는 10분 뒤 다시 나와요.' : '오늘은 여기까지. 틀린 카드부터 다시 봐요.');
     var goalN = todayStats().n || 0;
     var rc = $('#rCombo');
-    if (rc) rc.textContent = '최고 연속 정답 ' + (S.best || 0) + ' · 정답률 ' + pct + '% · 오늘 ' + goalN + '/' + dailyGoal() + '문제';
+    if (rc) rc.textContent = '최고 연속 정답 ' + (S.best || 0) + ' · 정답률 ' + pct + '% · 오늘 ' + goalN + '문제' +
+      (goalN >= dailyGoal() ? ' (목표 달성)' : ' / 목표 ' + dailyGoal());
     var list = $('#rList');
     list.innerHTML = '';
     var seen = {};

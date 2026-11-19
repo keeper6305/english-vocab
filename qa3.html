@@ -1327,7 +1327,7 @@ async function sGradeTests(c) {
   var guard = 0;
   while (q('#resultBox').hidden && guard++ < 24) await answerOne(c, guard % 3 !== 0);
   var rc = q('#rCombo').textContent;
-  rec(c.w, '결과:콤보 요약', /최고 연속 정답 \d+ · 정답률 \d+% · 오늘 \d+\/\d+문제/.test(rc), rc);
+  rec(c.w, '결과:콤보 요약', /최고 연속 정답 \d+ · 정답률 \d+% · 오늘 \d+문제/.test(rc), rc);
   var fin = qa.state().S;
   var wrongWords = [];
   (fin ? fin.answers : []).forEach(function (a) { if (!a.ok && wrongWords.indexOf(a.w) < 0) wrongWords.push(a.w); });
