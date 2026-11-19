@@ -27,9 +27,9 @@ async function drive(f) {
   w.confirm = () => true;
   const qa = () => w.__QA;
   const answer = ok => {
-    const card = qa.state().S.queue[qa.state().S.i].c;
+    const card = qa().state().S.queue[qa().state().S.i].c;
     if (!q('#quizCard').hidden) {
-      const ans = qa.options().answer;
+      const ans = qa().options().answer;
       const btns = Array.from(d.querySelectorAll('#quizOptions .opt'));
       const b = ok ? btns.find(x => x.dataset.val === ans) : btns.find(x => x.dataset.val !== ans);
       if (b) b.click();
@@ -53,7 +53,7 @@ async function drive(f) {
       q('#startBtn').click(); await sleep(300);
       let n = 0;
       while (q('#resultBox').hidden && n++ < 14) {
-        const i = qa.state().S.i;
+        const i = qa().state().S.i;
         answer(n % 3 !== 0); await sleep(90);
         if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
         await sleep(90);
@@ -70,14 +70,14 @@ async function drive(f) {
       q('#speakType .seg[data-type="sent"]').click(); await sleep(120);
       q('#speakLv .chip[data-lv="6"]').click(); await sleep(120);
       q('#speakStart').click(); await sleep(400);
-      const st = qa.speakState();
-      if (st) qa.speakCheck(st.target);
+      const st = qa().speakState();
+      if (st) qa().speakCheck(st.target);
       await sleep(400);
     } else if (state === 'chat') {
       q('.tab[data-tab="chat"]').click(); await sleep(350);
       q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(350);
-      qa.chatSend('I very like this cafe. Yesterday I go here.'); await sleep(600);
-      qa.chatSend('Can I get a large latte?'); await sleep(600);
+      qa().chatSend('I very like this cafe. Yesterday I go here.'); await sleep(600);
+      qa().chatSend('Can I get a large latte?'); await sleep(600);
     } else if (state === 'dark') {
       q('#themeBtn').click(); await sleep(250);
       q('#startBtn').click(); await sleep(300);
