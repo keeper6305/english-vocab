@@ -3342,8 +3342,8 @@
     html += '</div>';
     if (hint && stage >= 1) {
       html += '<div class="chat-hint" id="chatHintBox">' +
-        '<p class="ch-top"><b>1단계</b> 핵심 청크 · 첫 글자</p>' +
-        (pat ? '<p class="ch-pat">' + escapeHtml(pat.pat) + '</p>' : '') +
+        '<p class="ch-top"><b>1단계</b> 첫 글자 힌트</p>' +
+        (pat ? '<p class="ch-pat"><em>패턴</em> ' + escapeHtml(pat.pat) + '</p>' : '') +
         '<p class="ch-skel">' + escapeHtml(chatSkeleton(hint)) + '</p>' +
         (stage >= 2 ? '<p class="ch-full"><span>2단계</span> ' + escapeHtml(hint) + '</p>' : '') +
         '</div>';

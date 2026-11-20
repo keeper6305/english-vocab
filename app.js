@@ -599,7 +599,7 @@
 
     var left = newLeft();
     var sub;
-    if (due.length === 0 && left === 0) sub = '오늘 몫은 끝났어요 · 시작하면 안 본 카드가 이어집니다';
+    if (due.length === 0 && left === 0) sub = '새 카드 몫은 다 봤어요 · 시작하면 복습·안 본 카드로 이어집니다';
     else if (due.length === 0) sub = '새 카드 ' + left + '개 · ' + mixLabel() + ' · ' + orderLabel();
     else sub = '복습 ' + due.length + '개' + (left ? ' · 새 카드 ' + left + '개 · ' + mixLabel() : '') + ' · ' + orderLabel();
     $('#heroSub').textContent = sub;
@@ -659,7 +659,7 @@
     var left = Math.max(0, goal - n);
     $('#goalNote').textContent = n >= goal
       ? '오늘 목표 달성 · 이어서 해도 좋아요'
-      : (left <= SET_SIZE ? '한 세트(' + left + '문제)만 더 하면 오늘 몫 완료' : '10문제면 약 3분 · ' + left + '문제 남았어요');
+      : (left <= SET_SIZE ? '한 세트(10문제)면 오늘 목표 — ' + left + '문제 남았어요' : '10문제면 약 3분 · ' + left + '문제 남았어요');
   }
 
   function renderForecast() {
@@ -1868,8 +1868,14 @@
     $('#rCorrect').textContent = correct;
     $('#rTotal').textContent = total;
     var pct = total ? Math.round(correct / total * 100) : 0;
-    $('#rSub').textContent = (S.label ? S.label + ' · ' : '') +
-      (pct >= 90 ? '완벽해요. 다음 복습 주기가 잡혔어요.' : pct >= 60 ? '좋아요. 틀린 카드는 10분 뒤 다시 나와요.' : '오늘은 여기까지. 틀린 카드부터 다시 봐요.');
+    var finished = S;
+    var isRecall = finished.mode === 'recall';
+    $('#rSub').textContent = isRecall
+      ? '오답 회수 1회전 · ' + correct + '/' + total + ' 정답' + (correct === total
+        ? ' — 방금 틀린 카드를 모두 되찾았어요.'
+        : ' — 못 되찾은 카드는 10분 뒤 다시 나와요.')
+      : (S.label ? S.label + ' · ' : '') +
+        (pct >= 90 ? '완벽해요. 다음 복습 주기가 잡혔어요.' : pct >= 60 ? '좋아요. 틀린 카드는 10분 뒤 다시 나와요.' : '오늘은 여기까지. 틀린 카드부터 다시 봐요.');
     var goalN = todayStats().n || 0;
     var rc = $('#rCombo');
     if (rc) rc.textContent = '최고 연속 정답 ' + (S.best || 0) + ' · 정답률 ' + pct + '% · 오늘 ' + goalN + '문제' +
@@ -1886,20 +1892,37 @@
       d.innerHTML = '<b>' + escapeHtml(a.w) + '</b><span>' + (a.ok ? STAGE_LABEL[(r && r.st) || 0] : '10분 뒤') + '</span>';
       list.appendChild(d);
     });
-    var finished = S;
     /* 틀린 카드만 모아 10문제 한 세트 — Duolingo·Speak가 대화 끝에 지적한 것만 다시 물어보는 방식 */
     var wrongs = [];
     var seenW = {};
     S.answers.forEach(function (a) {
       if (!a.ok && !seenW[a.w]) { seenW[a.w] = 1; wrongs.push(a.w); }
     });
+    /* 오답 회수 1회전 — 방금 틀린 카드만 바로 한 바퀴. 새 10문제 세트 대신 '마무리 회수'라
+       세트 크기는 틀린 개수(최대 10) 그대로 두고, 10문제 단위 원칙은 건드리지 않는다. */
+    var rcl = $('#rRecall');
+    if (rcl) {
+      rcl.hidden = isRecall || !wrongs.length;
+      if (!rcl.hidden) {
+        rcl.textContent = '🔁 오답 회수 1회전 · ' + wrongs.length + '문제';
+        rcl.onclick = function () { S = null; startRecall(wrongs); };
+      }
+    }
     var rb = $('#rWeak');
     if (rb) {
-      rb.hidden = !wrongs.length;
-      if (wrongs.length) {
+      rb.hidden = isRecall || !wrongs.length;
+      if (!isRecall && wrongs.length) {
         rb.textContent = '틀린 ' + wrongs.length + '개만 다시';
         rb.onclick = function () { S = null; startRetry(wrongs); };
       }
+    }
+    /* 회수 버튼이 있으면 그것이 주 동작, 「10문제 더」는 보조로 */
+    var ag = $('#rAgain');
+    if (ag) {
+      var recallOn = !!(rcl && !rcl.hidden);
+      ag.classList.toggle('ghost-btn', recallOn);
+      ag.classList.toggle('wide', recallOn);
+      ag.classList.toggle('primary-btn', !recallOn);
     }
     $('#rAgain').onclick = function () {
       S = null;
@@ -1932,6 +1955,30 @@
     S = {
       queue: queue, i: 0, mode: 'retry', answers: [], correct: 0,
       quizDir: store.settings.dir, label: '틀린 카드 ' + (words || []).length + '개부터'
+    };
+    uiMode = store.settings.mode;
+    setUiMode(uiMode);
+    showStudy(true);
+    nextCard();
+  }
+
+  /* 오답 회수 1회전 — 방금 틀린 카드만(최대 10) 바로 한 바퀴.
+     새 세트를 짜지 않고 지금 세션의 오답만 되짚으므로 10문제 단위 원칙과 별개다. */
+  function startRecall(words) {
+    var queue = [];
+    var used = {};
+    (words || []).forEach(function (w) {
+      var c = cardByW(w);
+      if (!c) return;
+      var k = c.w.toLowerCase();
+      if (used[k]) return;
+      used[k] = 1;
+      queue.push({ c: c, kind: 'recall' });
+    });
+    if (!queue.length) { toast('회수할 카드가 없어요'); return; }
+    S = {
+      queue: queue.slice(0, SET_SIZE), i: 0, mode: 'recall', answers: [], correct: 0,
+      quizDir: store.settings.dir, label: '오답 회수 1회전', recall: true
     };
     uiMode = store.settings.mode;
     setUiMode(uiMode);
@@ -2879,6 +2926,7 @@
       id: 'free', icon: '💬', name: '자유 대화', sub: '아무 주제나',
       open: { en: 'Hi! Nice to talk with you. What would you like to talk about today?', ko: '안녕하세요! 오늘은 무슨 이야기를 해볼까요?' },
       hints: ['I want to talk about my day.', 'Can we talk about travel?', 'I practiced English today.'],
+      pattern: { pat: 'I want to talk about ___.', slots: ['my day', 'travel', 'a movie I watched'] },
       script: [
         { en: 'That sounds interesting. Tell me more about it.', ko: '흥미롭네요. 조금 더 말해 주세요.', hint: 'It was really fun because…' },
         { en: 'I see. How did that make you feel?', ko: '그렇군요. 기분은 어땠어요?', hint: 'I felt happy / nervous / tired.' },
@@ -2889,6 +2937,7 @@
       id: 'cafe', icon: '☕', name: '카페 주문', sub: '주문·사이즈·포장',
       open: { en: 'Hi there! Welcome. What can I get for you?', ko: '어서 오세요! 무엇을 드릴까요?' },
       hints: ['Can I get a large iced Americano, please?', "I'd like a latte, please.", 'Could I have a cappuccino?'],
+      pattern: { pat: 'Could I get ___, please?', slots: ['a large iced Americano', 'a hot latte', 'two croissants'] },
       script: [
         { en: 'Sure. What size would you like — small, medium, or large?', ko: '네. 사이즈는 어떻게 하시겠어요?', hint: 'Large, please.' },
         { en: 'Got it. For here or to go?', ko: '네. 드시고 가시나요, 포장인가요?', hint: 'To go, please.' },
@@ -2901,6 +2950,7 @@
       id: 'airport', icon: '✈️', name: '공항·여행', sub: '체크인·수하물',
       open: { en: 'Good morning. May I see your passport, please?', ko: '안녕하세요. 여권 좀 보여 주시겠어요?' },
       hints: ['Here you are.', "Sure, here's my passport.", 'Yes, of course.'],
+      pattern: { pat: "I'm flying to ___.", slots: ['New York', 'Tokyo', 'Busan'] },
       script: [
         { en: 'Thank you. Where are you flying to today?', ko: '감사합니다. 오늘 어디로 가시나요?', hint: "I'm flying to New York." },
         { en: 'Any bags to check?', ko: '부치실 짐이 있나요?', hint: 'Just this one, please.' },
@@ -2912,6 +2962,7 @@
       id: 'biz', icon: '💼', name: '비즈니스 스몰토크', sub: '업무·일정·근황',
       open: { en: 'Morning! How is the project going?', ko: '좋은 아침이에요! 프로젝트는 어떻게 되어 가요?' },
       hints: ["It's going well, thanks.", "We're almost done.", "We hit a small delay."],
+      pattern: { pat: "It's going ___.", slots: ['well, thanks', 'a bit slow', 'better than expected'] },
       script: [
         { en: 'Good to hear. Do you need anything from my side?', ko: '다행이네요. 제가 도와드릴 게 있을까요?', hint: 'Could you review the draft by Friday?' },
         { en: 'Sure, I can do that. When is the deadline again?', ko: '그럼요. 마감이 언제였죠?', hint: "It's due on the 24th." },
@@ -2923,6 +2974,7 @@
       id: 'daily', icon: '🙋', name: '일상 안부', sub: '근황·주말',
       open: { en: 'Hey! Long time no see. How have you been?', ka: '', ko: '오랜만이야! 어떻게 지냈어?' },
       hints: ["I've been busy but good.", "Pretty good, thanks. How about you?", "Not bad. How are you?"],
+      pattern: { pat: "I've been ___.", slots: ['busy but good', 'pretty good, thanks', 'a little tired'] },
       script: [
         { en: 'Same here. Did you do anything fun on the weekend?', ko: '나도 그래. 주말에 재미있는 일 있었어?', hint: 'I went hiking with friends.' },
         { en: 'That sounds great. How was the weather?', ko: '좋았겠다. 날씨는 어땠어?', hint: 'It was cold but sunny.' },
@@ -2933,6 +2985,7 @@
       id: 'restaurant', icon: '🍽️', name: '식당 예약', sub: '인원·시간·이름',
       open: { en: 'Thank you for calling Bella Kitchen. How may I help you?', ko: '벨라 키친입니다. 무엇을 도와드릴까요?' },
       hints: ["I'd like to make a reservation.", 'I want to book a table for two.', 'Can I reserve a table?'],
+      pattern: { pat: "I'd like to make a reservation for ___.", slots: ['two people at seven', 'four people tonight', 'a table for six on Friday'] },
       script: [
         { en: 'Of course. For how many people?', ko: '네. 몇 분이세요?', hint: 'For four people, please.' },
         { en: 'And what time would you like?', ko: '몇 시로 예약해 드릴까요?', hint: 'Seven thirty, please.' },
@@ -2944,6 +2997,7 @@
       id: 'shopping', icon: '🛍️', name: '쇼핑·환불', sub: '교환·환불·영수증',
       open: { en: 'Hi, how can I help you today?', ko: '안녕하세요, 무엇을 도와드릴까요?' },
       hints: ['I want to return this shirt.', 'This item is too small.', 'Can I get a refund?'],
+      pattern: { pat: 'I want to ___.', slots: ['return this shirt', 'get a refund on this', 'exchange this for a bigger size'] },
       script: [
         { en: 'I see. Do you have the receipt with you?', ko: '그렇군요. 영수증 가지고 계세요?', hint: 'Yes, here it is.' },
         { en: 'Thank you. Was it worn or washed?', ko: '감사합니다. 입거나 세탁하셨나요?', hint: 'No, I only tried it on.' },
@@ -3143,6 +3197,7 @@
       st.step = 0;
       saveNow();
     }
+    chatHintStage = 0;
     paintChat();
     pushLayer();
   }
@@ -3156,6 +3211,174 @@
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
 
+  /* ---- 힌트 사다리 (Speak식) : 1단계 핵심 청크+첫 글자 → 2단계 전체 문장 → 3단계 같은 패턴 치환 ---- */
+  var HINT_KEEP = {};
+  ('i a an the to of in on at is am are was were be been it its my me you your we our they their he she his her ' +
+    'for and or but so do does did can could would will should shall may might must have has had this that these those ' +
+    'some any very not no yes if with from by as up out just also than then there here what how when where why who ' +
+    'which please one two too much many more most about into over under again').split(' ').forEach(function (w) { HINT_KEEP[w] = 1; });
+  var chatHintStage = 0;
+
+  function maskWord(t, force) {
+    var m = String(t).match(/^([^A-Za-z]*)([A-Za-z][A-Za-z'’-]*)([^A-Za-z]*)$/);
+    if (!m) return t;
+    var core = m[2];
+    if (!force && (core.length <= 1 || HINT_KEEP[core.toLowerCase()])) return t;
+    return m[1] + core.charAt(0) + new Array(Math.max(2, Math.min(core.length, 9))).join('_') + m[3];
+  }
+
+  /* 지금 대화에서 이어 말할 문장 — 내장 대화의 다음 힌트, LLM이 준 NEXT, 주제 예시 순서 */
+  function chatHintText() {
+    if (!chatTopic) return '';
+    var st = chatStore(chatTopic.id);
+    if (st.lastHint) return st.lastHint;
+    if (chatTopic._lastNext) return chatTopic._lastNext;
+    var idx = Math.min(Math.max(0, (st.step || 1) - 1), chatTopic.script.length - 1);
+    var step = chatTopic.script[idx] || {};
+    return step.hint || (chatTopic.hints || [])[0] || '';
+  }
+
+  /* 첫 3단어(짧은 문장은 첫 단어)는 그대로 두고 나머지는 기능어만 남기고 첫 글자 스켈레톤 */
+  function chatSkeleton(s) {
+    var raw = String(s || '').trim();
+    var toks = raw.split(/\s+/);
+    if (!raw || !toks.length) return raw;
+    var head = toks.length >= 5 ? 3 : toks.length >= 4 ? 2 : 0;
+    var out = toks.map(function (t, i) { return i < head ? t : maskWord(t); });
+    if (out.join(' ') === toks.join(' ')) {
+      var mid = Math.max(0, Math.floor(toks.length / 2));
+      out[mid] = maskWord(toks[mid], true);
+    }
+    return out.join(' ');
+  }
+
+  /* 틀린 부분·고친 부분에 표시를 입힌다 (겹치지 않게 앞에서부터) */
+  function markTokens(text, words, cls) {
+    var s = String(text || '');
+    var ranges = [];
+    (words || []).forEach(function (w) {
+      var needle = String(w == null ? '' : w);
+      if (!needle) return;
+      var from = 0;
+      while (from < s.length) {
+        var i = s.toLowerCase().indexOf(needle.toLowerCase(), from);
+        if (i < 0) break;
+        var end = i + needle.length;
+        var hit = ranges.some(function (r) { return i < r[1] && end > r[0]; });
+        if (!hit) { ranges.push([i, end]); break; }
+        from = i + 1;
+      }
+    });
+    if (!ranges.length) return escapeHtml(s);
+    ranges.sort(function (a, b) { return a[0] - b[0]; });
+    var out = '', pos = 0;
+    ranges.forEach(function (r) {
+      out += escapeHtml(s.slice(pos, r[0])) + '<mark class="' + cls + '">' + escapeHtml(s.slice(r[0], r[1])) + '</mark>';
+      pos = r[1];
+    });
+    return out + escapeHtml(s.slice(pos));
+  }
+
+  function chatFixHtml(m, idx) {
+    var notes = m.notes || [];
+    var changed = m.corrected && m.corrected !== m.text;
+    var html = '';
+    if (changed) {
+      html += '<div class="fix">' +
+        '<p class="fix-top">✏️ 교정 ' + (notes.length || 1) + '곳</p>' +
+        '<p class="fix-line">' + markTokens(m.corrected, notes.map(function (n) { return n.to; }), 'fx-new') + '</p>' +
+        (notes.length ? '<ul class="fix-list">' + notes.map(function (n) {
+          return '<li><span class="fx-old">' + escapeHtml(n.from) + '</span><span class="fx-arw">→</span>' +
+            '<span class="fx-new-t">' + escapeHtml(n.to) + '</span>' +
+            (n.why ? '<em class="fx-why">' + escapeHtml(n.why) + '</em>' : '') + '</li>';
+        }).join('') + '</ul>' : '') +
+        '<div class="fix-acts">' +
+        '<button class="mini-say" data-say="' + idx + '">🔊 듣기</button>' +
+        (micSupport() ? '<button class="mini-say" data-shadow="' + idx + '">🎤 따라 말해보기</button>' : '') +
+        '<button class="mini-say" data-retry="' + idx + '">↩ 다시 입력</button>' +
+        '</div>' +
+        '<p class="fx-score" hidden></p>' +
+        '</div>';
+    } else {
+      html += '<p class="fix-ok">✅ 교정할 곳 없어요</p>';
+    }
+    if (m.natural) html += '<div class="nat"><span>더 자연스럽게</span> ' + escapeHtml(m.natural) + '</div>';
+    return html;
+  }
+
+  /* 교정문을 듣고 따라 말하면 그 자리에서 점수 — Speak의 교정→재시도 루프 */
+  function chatShadow(target, out) {
+    if (!micSupport()) { toast(micErrorText('unsupported')); return; }
+    if (out) { out.hidden = false; out.textContent = '듣고 따라 말해 보세요…'; }
+    listenOnce(null, function (txt) {
+      if (!out) return;
+      out.hidden = false;
+      if (!txt) { out.textContent = '아무것도 인식되지 않았어요. 마이크에 조금 더 가까이 대고 다시 말해 보세요.'; return; }
+      var r = alignSpeech(target, txt);
+      out.innerHTML = '<b class="' + (r.score >= 80 ? 'ok-t' : r.score >= 55 ? 'mid-t' : 'bad-t') + '">' + r.score + '점</b> ' +
+        r.items.map(function (x) {
+          var cls = x.state === 'ok' ? 'ok-t' : x.state === 'near' ? 'mid-t' : 'bad-t';
+          return '<span class="' + cls + '">' + escapeHtml(x.word) + '</span>';
+        }).join(' ') + (r.score >= 80 ? ' · 좋아요' : ' · 표시된 단어를 다시 들어보세요');
+    }, function (err) {
+      if (out) { out.hidden = false; out.textContent = micErrorText(err); }
+    });
+  }
+
+  function paintChatSuggest() {
+    var sug = $('#chatSuggest');
+    if (!sug) return;
+    if (!chatTopic) { sug.innerHTML = ''; return; }
+    var st = chatStore(chatTopic.id);
+    var last = st.turns[st.turns.length - 1];
+    var hint = last && last.role === 'ai' ? chatHintText() : '';
+    var pat = chatTopic.pattern || null;
+    var stage = hint ? chatHintStage : 0;
+    var html = '<div class="sug-head"><span class="sug-lbl">이렇게 말해보세요</span>';
+    if (hint) {
+      var lbl = stage === 0 ? '💡 힌트' : stage === 1 ? '💡 전체 문장' : stage === 2 ? '🔄 치환 연습' : '↺ 힌트 접기';
+      html += '<button class="hint-btn" id="chatHintBtn" aria-label="힌트 단계">' + lbl + '</button>';
+    }
+    html += '</div>';
+    if (hint && stage >= 1) {
+      html += '<div class="chat-hint" id="chatHintBox">' +
+        '<p class="ch-top"><b>1단계</b> 첫 글자 힌트</p>' +
+        (pat ? '<p class="ch-pat"><em>패턴</em> ' + escapeHtml(pat.pat) + '</p>' : '') +
+        '<p class="ch-skel">' + escapeHtml(chatSkeleton(hint)) + '</p>' +
+        (stage >= 2 ? '<p class="ch-full"><span>2단계</span> ' + escapeHtml(hint) + '</p>' : '') +
+        '</div>';
+    }
+    var chips = [];
+    if (stage >= 2) chips.push({ t: hint, full: true });
+    (chatTopic.hints || []).slice(0, stage >= 2 ? 1 : 2).forEach(function (h) {
+      if (stage < 3 && h !== hint) chips.push({ t: h });
+    });
+    if (stage >= 3 && pat) {
+      pat.slots.forEach(function (s) { chips.push({ t: pat.pat.replace('___', s), sub: true }); });
+    }
+    html += chips.map(function (c, i) {
+      return '<button class="sug' + (c.full ? ' full' : '') + (c.sub ? ' sub' : '') + '" data-i="' + i + '">' + escapeHtml(c.t) + '</button>';
+    }).join('');
+    if (stage >= 2 && speakOk) html += '<button class="mini-say" id="chatHintSay">🔊 문장 듣기</button>';
+    sug.innerHTML = html;
+    $$('#chatSuggest .sug').forEach(function (b) {
+      var c = chips[+b.dataset.i];
+      if (!c) return;
+      b.addEventListener('click', function () {
+        $('#chatText').value = c.t;
+        $('#chatText').focus();
+        if (speakOk) speak(c.t);
+      });
+    });
+    var hb = $('#chatHintBtn');
+    if (hb) hb.addEventListener('click', function () {
+      chatHintStage = chatHintStage >= 3 ? 0 : chatHintStage + 1;
+      paintChatSuggest();
+    });
+    var hs = $('#chatHintSay');
+    if (hs) hs.addEventListener('click', function () { speak(hint); });
+  }
+
   function paintChat() {
     if (!chatTopic) return;
     var st = chatStore(chatTopic.id);
@@ -3165,16 +3388,9 @@
         return '<div class="msg ai"><div class="bubble">' + escapeHtml(m.text) +
           (m.ko ? '<span class="bubble-ko">' + escapeHtml(m.ko) + '</span>' : '') + '</div></div>';
       }
-      var fix = '';
-      if (m.corrected && m.corrected !== m.text) {
-        fix += '<div class="fix"><p class="fix-line">✏️ ' + escapeHtml(m.corrected) + '</p>' +
-          (m.notes && m.notes.length ? '<ul>' + m.notes.map(function (n) {
-            return '<li><b>' + escapeHtml(n.from) + '</b> → <b>' + escapeHtml(n.to) + '</b> · ' + escapeHtml(n.why) + '</li>';
-          }).join('') + '</ul>' : '') + '</div>';
-      }
-      if (m.natural) fix += '<div class="nat"><span>더 자연스럽게</span> ' + escapeHtml(m.natural) + '</div>';
-      if (fix) fix += '<button class="mini-say" data-say="' + idx + '">🔊 교정문 듣기</button>';
-      return '<div class="msg me"><div class="bubble">' + escapeHtml(m.text) + '</div>' + fix + '</div>';
+      var bad = (m.corrected && m.corrected !== m.text) ? (m.notes || []).map(function (n) { return n.from; }) : [];
+      return '<div class="msg me"><div class="bubble">' + markTokens(m.text, bad, 'fx-bad') + '</div>' +
+        chatFixHtml(m, idx) + '</div>';
     }).join('');
     $$('#chatLog [data-say]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -3182,21 +3398,24 @@
         if (m) speak(m.corrected || m.text);
       });
     });
-    var last = st.turns[st.turns.length - 1];
-    var sug = $('#chatSuggest');
-    if (sug) {
-      var hint = '';
-      if (last && last.role === 'ai') {
-        hint = st.lastHint || (chatTopic.script[Math.min(st.step, chatTopic.script.length - 1)] || {}).hint || '';
-      }
-      var chips = (hint ? [hint] : []).concat(chatTopic.hints || []).slice(0, 3);
-      sug.innerHTML = '<span class="sug-lbl">이렇게 말해보세요</span>' + chips.map(function (h) {
-        return '<button class="sug">' + escapeHtml(h) + '</button>';
-      }).join('');
-      $$('#chatSuggest .sug').forEach(function (b) {
-        b.addEventListener('click', function () { $('#chatText').value = b.textContent; $('#chatText').focus(); });
+    $$('#chatLog [data-shadow]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var m = st.turns[+b.dataset.shadow];
+        if (!m) return;
+        chatShadow(m.corrected || m.text, b.parentNode.parentNode.querySelector('.fx-score'));
       });
-    }
+    });
+    $$('#chatLog [data-retry]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var m = st.turns[+b.dataset.retry];
+        if (!m) return;
+        $('#chatText').value = m.corrected || m.text;
+        $('#chatText').focus();
+        chatHintStage = 0;
+        toast('교정문을 입력창에 넣었어요 — 고친 문장으로 다시 말해보세요');
+      });
+    });
+    paintChatSuggest();
     log.scrollTop = log.scrollHeight;
   }
 
@@ -3301,6 +3520,7 @@
       st.at = Date.now();
       saveNow();
       chatBusy = false;
+      chatHintStage = 0;   /* 새 차례에는 힌트를 다시 1단계부터 */
       $('#chatNote').textContent = 'Enter로 전송 · 마이크로 말하면 자동 입력';
       paintChat();
     };
@@ -3488,6 +3708,20 @@
         };
       },
       startRetry: startRetry,
+      startRecall: startRecall,
+      hintState: function () {
+        if (!chatTopic) return null;
+        var st = chatStore(chatTopic.id);
+        var hint = chatHintText();
+        return {
+          stage: chatHintStage, hint: hint, skel: chatSkeleton(hint),
+          pattern: (chatTopic.pattern || {}).pat || '',
+          slots: (chatTopic.pattern || {}).slots || [],
+          btn: $('#chatHintBtn') ? $('#chatHintBtn').textContent : '',
+          box: !!$('#chatHintBox'),
+          chips: $$('#chatSuggest .sug').map(function (b) { return b.textContent; })
+        };
+      },
       setAutoSay: function (v) { store.settings.autoSay = !!v; },
       hasShadow: function () { return !!$('#fbShadow'); },
       back: function () { history.back(); }

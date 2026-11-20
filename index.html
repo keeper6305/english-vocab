@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="영단어 6000">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=4.1.0">
 </head>
 <body>
 <div id="app">
@@ -280,6 +280,7 @@
         <p class="result-sub" id="rSub"></p>
         <p class="result-combo" id="rCombo"></p>
         <div class="result-list" id="rList"></div>
+        <button class="primary-btn" id="rRecall" hidden>오답 회수 1회전</button>
         <button class="ghost-btn wide weak-again" id="rWeak" hidden>틀린 카드만 다시</button>
         <button class="primary-btn" id="rAgain">10문제 더 풀기</button>
         <button class="ghost-btn wide" id="rHome">홈으로</button>
@@ -579,7 +580,7 @@
 <script src="data/lv1.js"></script>
 <script src="data/lv5.js"></script>
 <script src="data/meta.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=4.1.0"></script>
 <script>
   // 나머지 레벨은 첫 화면 이후에 받아 둔다 (초기 로딩 1초 유지)
   addEventListener('load', function () {

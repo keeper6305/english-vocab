@@ -86,6 +86,23 @@ async function drive(f) {
       q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(350);
       qa().chatSend('I very like this cafe. Yesterday I go here.'); await sleep(600);
       qa().chatSend('Can I get a large latte?'); await sleep(600);
+    } else if (state === 'hint' || state === 'hintdark') {
+      if (state === 'hintdark') { q('#themeBtn').click(); await sleep(250); }
+      q('.tab[data-tab="chat"]').click(); await sleep(320);
+      q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(320);
+      qa().chatSend('I very like this cafe. Yesterday I go here.'); await sleep(700);
+      for (let i = 0; i < 3; i++) { const hb = q('#chatHintBtn'); if (hb) { hb.click(); await sleep(120); } }
+      await sleep(200);
+    } else if (state === 'recall' || state === 'recalldark') {
+      if (state === 'recalldark') { q('#themeBtn').click(); await sleep(250); }
+      q('#startBtn').click(); await sleep(300);
+      let n2 = 0;
+      while (q('#resultBox').hidden && n2++ < 14) {
+        answer(n2 % 3 !== 0); await sleep(80);
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(80);
+      }
+      await sleep(320);
     } else if (state === 'dark') {
       q('#themeBtn').click(); await sleep(250);
       q('#startBtn').click(); await sleep(300);

@@ -869,7 +869,6 @@ main { flex: 1; padding: 6px 16px 20px; }
   font-size: 12px; line-height: 1.45; max-width: 100%;
 }
 .fix-line { margin: 0; color: var(--ok); font-weight: 700; }
-.fix ul { margin: 5px 0 0; padding-left: 15px; color: var(--text-soft); }
 .fix li { margin: 2px 0; }
 .nat {
   margin-top: 5px; padding: 8px 10px; border-radius: 11px; background: var(--accent-soft);
@@ -881,6 +880,44 @@ main { flex: 1; padding: 6px 16px 20px; }
   border-radius: 8px; padding: 5px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
 }
 .chat-suggest { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 4px 0 8px; }
+.sug-head { display: flex; align-items: center; gap: 8px; width: 100%; }
+.sug-head .sug-lbl { flex: 1; width: auto; }
+.hint-btn {
+  border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent);
+  border-radius: 99px; padding: 5px 11px; font-size: 11px; font-weight: 800; cursor: pointer;
+  white-space: nowrap;
+}
+.hint-btn:active { transform: scale(.97); }
+.chat-hint {
+  width: 100%; margin: 0 0 4px; padding: 9px 11px; border-radius: 12px;
+  background: var(--bg-soft); border: 1px dashed var(--line);
+  font-size: 12px; line-height: 1.5; word-break: break-word;
+}
+.ch-top { margin: 0 0 3px; font-size: 10px; font-weight: 800; color: var(--text-dim); }
+.ch-top b { color: var(--accent); margin-right: 3px; }
+.ch-pat em { font-style: normal; font-size: 9.5px; font-weight: 800; color: var(--text-dim); border: 1px solid var(--line); border-radius: 5px; padding: 1px 4px; margin-right: 4px; vertical-align: 1px; }
+.ch-pat { margin: 0 0 3px; font-size: 12.5px; font-weight: 800; color: var(--accent); }
+.ch-skel { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em; color: var(--text); }
+.ch-full { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); color: var(--ok); font-weight: 700; }
+.ch-full span { font-size: 10px; font-weight: 800; color: var(--text-dim); margin-right: 2px; }
+.sug.full { border-color: var(--ok); color: var(--ok); font-weight: 700; white-space: normal; text-align: left; overflow: visible; }
+.sug.sub { border-style: dashed; color: var(--text-soft); white-space: normal; text-align: left; }
+.fix-top { margin: 0 0 2px; font-size: 10.5px; font-weight: 800; color: var(--ok); }
+.fix-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.fix-list li { margin: 4px 0; line-height: 1.4; }
+.fx-old { color: var(--bad); font-weight: 700; text-decoration: line-through; }
+.fx-arw { margin: 0 4px; color: var(--text-dim); }
+.fx-new-t { color: var(--ok); font-weight: 800; }
+.fx-why { display: block; font-style: normal; font-size: 11px; color: var(--text-soft); }
+mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; padding: 0 1px; border-radius: 3px; }
+.msg.me .bubble mark.fx-bad {
+  background: rgba(255, 255, 255, .18); color: #fff; padding: 0 1px; border-radius: 3px;
+  text-decoration: underline wavy #ffd166; text-underline-offset: 3px;
+}
+.fix-acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.fix-acts .mini-say { margin-top: 0; }
+.fix-ok { margin: 4px 0 0; font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.fx-score { margin: 5px 0 0; font-size: 11.5px; line-height: 1.5; }
 .sug-lbl { font-size: 10px; font-weight: 800; color: var(--text-dim); width: 100%; }
 .sug {
   border: 1px solid var(--line); background: var(--bg-elev); color: var(--text-soft);
@@ -950,6 +987,7 @@ main { flex: 1; padding: 6px 16px 20px; }
 @keyframes comboPop { from { transform: scale(.72); opacity: .45; } to { transform: none; opacity: 1; } }
 
 .result-combo { margin: -8px 0 14px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+#rRecall { margin-bottom: 8px; }
 .weak-again { margin-bottom: 8px; border-color: color-mix(in srgb, var(--bad) 32%, var(--line)); color: var(--bad); background: var(--bad-soft); }
 
 .fb-shadow-out { margin: 0; font-size: 13px; line-height: 1.55; background: var(--bg-soft); border-radius: 10px; padding: 8px 10px; word-break: keep-all; }

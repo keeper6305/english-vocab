@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>QA v4.0.0 전수 클릭 점검</title>
+<title>QA v4.1.0 전수 클릭 점검</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; margin: 0; padding: 14px; background: #eef0f6; color: #191c2b; }
@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>v4.0.0 전수 클릭 점검 — 세트 반복 · 해설 · 음성 · 중도저장 · 회화방 · 단어장 · 통계 · 뒤로가기 · 오늘 목표 · 복습 예보 · 콤보/도트 · 틀린 카드만 다시 · 360/390</h1>
+<h1>v4.1.0 전수 클릭 점검 — 세트 반복 · 해설 · 음성 · 중도저장 · 회화방(힌트 사다리·교정 카드) · 오답 회수 1회전 · 단어장 · 통계 · 뒤로가기 · 360/390</h1>
 <div id="sum">시작 중…</div>
 <pre id="out">…</pre>
 <div class="frames" id="frames"></div>
@@ -1285,6 +1285,125 @@ async function buttonSweep(c) {
   await goHome(c);
 }
 
+
+/* ============================================================
+ *  M. v4.1 — 회화방 힌트 사다리 · 교정 카드 · 오답 회수 1회전 · 목표 문구
+ * ============================================================ */
+async function chatLadderTests(c) {
+  var q = c.q, doc = c.doc, qa = c.win.__QA;
+  q('.tab[data-tab="chat"]').click(); await sleep(150);
+  q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(170);
+  var h0 = qa.hintState();
+  rec(c.w, '힌트:시작은 0단계', !!h0 && h0.stage === 0 && !h0.box && !!q('#chatHintBtn') && h0.btn.indexOf('전체') < 0,
+    h0 ? ('stage=' + h0.stage + ' btn=' + h0.btn) : 'none');
+  rec(c.w, '힌트:0단계엔 전체 문장 없음', !!h0 && h0.chips.join(' « ').indexOf(h0.hint) < 0, h0 ? h0.chips.join(' | ') : '');
+  q('#chatHintBtn').click(); await sleep(100);
+  var h1 = qa.hintState();
+  var box1 = q('#chatHintBox');
+  rec(c.w, '힌트:1단계 핵심 청크', !!h1 && h1.stage === 1 && !!box1 && box1.textContent.indexOf(h1.pattern) > -1,
+    box1 ? box1.textContent.replace(/\s+/g, ' ').slice(0, 70) : 'none');
+  rec(c.w, '힌트:1단계 첫 글자 스켈레톤', !!h1 && /_/.test(h1.skel) && h1.skel !== h1.hint && !!box1 && box1.textContent.indexOf(h1.skel) > -1,
+    h1 ? h1.skel : '');
+  rec(c.w, '힌트:1단계 전체 문장은 숨김', !q('#chatHintBox .ch-full') && h1.chips.join(' « ').indexOf(h1.hint) < 0,
+    h1.chips.join(' | '));
+  boxScan(c, 'chat-hint1');
+  q('#chatHintBtn').click(); await sleep(100);
+  var h2 = qa.hintState();
+  var full = q('#chatHintBox .ch-full');
+  rec(c.w, '힌트:2단계 전체 문장', !!h2 && h2.stage === 2 && !!full && full.textContent.indexOf(h2.hint) > -1 && h2.chips.indexOf(h2.hint) > -1,
+    full ? full.textContent.replace(/\s+/g, ' ').slice(0, 70) : 'none');
+  rec(c.w, '힌트:문장 듣기 버튼', !!q('#chatHintSay'), 'btn=' + !!q('#chatHintSay'));
+  q('#chatHintBtn').click(); await sleep(100);
+  var h3 = qa.hintState();
+  var subBtns = Array.prototype.slice.call(doc.querySelectorAll('#chatSuggest .sug.sub'));
+  var subs = subBtns.map(function (b) { return b.textContent; });
+  rec(c.w, '힌트:3단계 패턴 치환 3개', h3.stage === 3 && subBtns.length === 3 && subs.every(function (x) {
+    return x !== h3.hint && x.indexOf(' ,') < 0 && /[.?!]$/.test(x);
+  }), subs.join(' | '));
+  boxScan(c, 'chat-hint3');
+  var subBtn = Array.prototype.slice.call(doc.querySelectorAll('#chatSuggest .sug.sub'))[0];
+  if (subBtn) { subBtn.click(); await sleep(150); }
+  rec(c.w, '힌트:치환 문장 탭 → 입력창', !!subBtn && q('#chatText').value === (subBtn ? subBtn.textContent : ''), (q('#chatText').value || '').slice(0, 50));
+  q('#chatHintBtn').click(); await sleep(100);
+  rec(c.w, '힌트:접기(0단계 복귀)', qa.hintState().stage === 0 && !q('#chatHintBox'), 'stage=' + qa.hintState().stage);
+  q('#chatText').value = '';
+  qa.chatClose(); await sleep(130);
+}
+
+async function chatFixTests(c) {
+  var q = c.q, doc = c.doc, qa = c.win.__QA;
+  q('.tab[data-tab="chat"]').click(); await sleep(150);
+  q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(160);
+  q('#chatText').value = 'I very like this cafe. Yesterday I go here.';
+  q('#chatSend').click(); await sleep(750);
+  var msgs = Array.prototype.slice.call(doc.querySelectorAll('#chatLog .msg.me'));
+  var last = msgs[msgs.length - 1];
+  var bad = last ? last.querySelectorAll('mark.fx-bad') : [];
+  var okMark = last ? last.querySelectorAll('mark.fx-new') : [];
+  var lis = last ? last.querySelectorAll('.fix-list li') : [];
+  var why = last ? last.querySelectorAll('.fx-why') : [];
+  rec(c.w, '교정:틀린 곳 표시', bad.length >= 2, 'marks=' + bad.length);
+  rec(c.w, '교정:고친 문장 표시', okMark.length >= 2 && !!last && last.querySelectorAll('.fix-line').length === 1, 'marks=' + okMark.length);
+  rec(c.w, '교정:이유 목록', lis.length >= 2 && why.length === lis.length, 'li=' + lis.length + ' why=' + why.length);
+  rec(c.w, '교정:고친 개수 표기', !!last && /교정 \d+곳/.test(last.textContent), last ? last.textContent.replace(/\s+/g, ' ').slice(0, 40) : 'none');
+  var rt = last ? last.querySelector('[data-retry]') : null;
+  rec(c.w, '교정:다시 입력 버튼', !!rt, 'retry=' + !!rt);
+  if (rt) { rt.click(); await sleep(120); }
+  rec(c.w, '교정:다시 입력 → 입력창', q('#chatText').value.indexOf('really like') > -1 && q('#chatText').value.indexOf('went') > -1,
+    (q('#chatText').value || '').slice(0, 60));
+  rec(c.w, '교정:따라 말하기 버튼', !!last && !!last.querySelector('[data-shadow]'), 'shadow=' + !!(last && last.querySelector('[data-shadow]')));
+  boxScan(c, 'chat-fix');
+  q('#chatText').value = 'This coffee is really good, thank you.';
+  q('#chatSend').click(); await sleep(700);
+  var msgs2 = Array.prototype.slice.call(doc.querySelectorAll('#chatLog .msg.me'));
+  var clean = msgs2[msgs2.length - 1];
+  rec(c.w, '교정:맞는 문장은 통과 표시', !!clean && !!clean.querySelector('.fix-ok') && !clean.querySelector('.fix-line'),
+    clean ? (clean.textContent || '').replace(/\s+/g, ' ').slice(0, 40) : 'none');
+  q('#chatText').value = '';
+  qa.chatClose(); await sleep(130);
+}
+
+async function recallTests(c) {
+  var q = c.q, qa = c.win.__QA;
+  await goHome(c);
+  await startMix(c, 'quiz');
+  var wrongs = [];
+  for (var i = 0; i < 3; i++) {
+    var card = curCard(c);
+    if (!card) break;
+    wrongs.push(card.w.toLowerCase());
+    await answerOne(c, false);
+    await sleep(20);
+  }
+  var guard = 0;
+  while (q('#resultBox').hidden && guard++ < 20) await answerOne(c, true);
+  var rcl = q('#rRecall');
+  rec(c.w, '회수:결과에 회수 버튼', !!rcl && !rcl.hidden && rcl.textContent.indexOf('오답 회수 1회전') > -1 &&
+    rcl.textContent.indexOf(wrongs.length + '문제') > -1, rcl ? (rcl.hidden ? 'hidden' : rcl.textContent) : 'none');
+  boxScan(c, 'result-recall');
+  rec(c.w, '회수:주 동작 강조', !!rcl && !!q('#rAgain') && q('#rAgain').classList.contains('ghost-btn') && !q('#rAgain').classList.contains('primary-btn'),
+    q('#rAgain').className);
+  rec(c.w, '회수:보조 「틀린 N개만 다시」 유지', !q('#rWeak').hidden && q('#rWeak').textContent.indexOf('틀린 ' + wrongs.length + '개') === 0,
+    q('#rWeak').textContent);
+  if (rcl) { rcl.click(); await sleep(240); }
+  var ids = c.ids().map(function (x) { return String(x).toLowerCase(); });
+  rec(c.w, '회수:틀린 카드만 N문제', !q('#view-study').hidden && q('#studyCounter').textContent === '1/' + ids.length &&
+    ids.length === wrongs.length && ids.every(function (w) { return wrongs.indexOf(w) > -1; }),
+    'counter=' + q('#studyCounter').textContent + ' · ' + ids.join('/'));
+  rec(c.w, '회수:라벨·모드', !!qa.state().S && qa.state().S.mode === 'recall', qa.state().S ? qa.state().S.mode : 'none');
+  var g2 = 0;
+  while (q('#resultBox').hidden && g2++ < 14) await answerOne(c, true);
+  rec(c.w, '회수:완료 요약', q('#rSub').textContent.indexOf('오답 회수 1회전') > -1, q('#rSub').textContent);
+  rec(c.w, '회수:1회전 뒤 반복 없음', q('#rRecall').hidden && q('#rWeak').hidden,
+    'recall=' + q('#rRecall').hidden + ' weak=' + q('#rWeak').hidden);
+  rec(c.w, '회수:「10문제 더」 원복', q('#rAgain').classList.contains('primary-btn'), q('#rAgain').className);
+  q('#rHome').click(); await sleep(140);
+  await goHome(c);
+  var note = q('#goalNote').textContent;
+  rec(c.w, '목표:세트 크기 표기 정합', note.indexOf('한 세트(') < 0 || note.indexOf('한 세트(10문제)') > -1, note);
+  rec(c.w, '홈:모순 안내 없음', q('#heroSub').textContent.indexOf('오늘 몫은 끝났어요') < 0, q('#heroSub').textContent);
+}
+
 async function resetTests(c) {
   var q = c.q;
   q('.tab[data-tab="stats"]').click(); await sleep(140);
@@ -1421,6 +1540,9 @@ async function run() {
   await section('back', deep, backTests);
   await section('buttons', deep, buttonSweep);
   await section('sgrade', deep, sGradeTests);
+  await section('ladder', deep, chatLadderTests);
+  await section('chatfix', deep, chatFixTests);
+  await section('recall', deep, recallTests);
   await section('reset', deep, resetTests);
   rec(deep.w, '콘솔에러 0건', errors.length === 0, errors.slice(0, 5).join(' | '));
   render();
