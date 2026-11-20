@@ -20,9 +20,17 @@ if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
 if (window.caches) { caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }); }
 </script>
 <div class="devices">
-  <div><iframe id="f390" width="390" height="844" src="index.html?qa=1"></iframe><div class="cap">390px</div></div>
-  <div><iframe id="f360" width="360" height="844" src="index.html?qa=1"></iframe><div class="cap">360px</div></div>
+  <div><iframe id="f390" width="390" height="844"></iframe><div class="cap">390px</div></div>
+  <div><iframe id="f360" width="360" height="844"></iframe><div class="cap">360px</div></div>
 </div>
+<script>
+/* 캐시된 index.html 이 옛 app.js 를 물고 오지 않게 매번 새로 받는다 */
+(function () {
+  var cb = '?qa=1&cb=' + Date.now();
+  document.getElementById('f390').src = 'index.html' + cb;
+  document.getElementById('f360').src = 'index.html' + cb;
+})();
+</script>
 <script>
 const state = new URLSearchParams(location.search).get('state') || 'home';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
