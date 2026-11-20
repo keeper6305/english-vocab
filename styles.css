@@ -925,6 +925,9 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
   border-radius: 99px; padding: 6px 10px; font-size: 11.5px; cursor: pointer; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 힌트 사다리를 펼친 동안은 로그를 줄여 입력창이 화면에 남게 */
+#chatRoom.hint-on .chat-log { max-height: 30vh; }
+#chatRoom.hint-on .chat-hint { padding: 8px 10px; }
 .chat-input {
   display: flex; align-items: center; gap: 6px; background: var(--bg-elev);
   border: 1px solid var(--line); border-radius: 14px; padding: 6px 6px 6px 8px;

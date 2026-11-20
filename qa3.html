@@ -520,6 +520,14 @@ async function screenTests(c) {
   q('#chatText').value = 'I very like this cafe. Yesterday I go here.';
   q('#chatSend').click(); await sleep(600);
   boxScan(c, 'chat-room');
+  /* 힌트를 끝까지 펼친 상태에서도 입력창·전송이 화면 안에 남는가 */
+  for (var hi = 0; hi < 3; hi++) { var hbtn = q('#chatHintBtn'); if (hbtn) { hbtn.click(); await sleep(110); } }
+  var ib = q('#chatText').getBoundingClientRect().bottom;
+  var sb = q('#chatSend').getBoundingClientRect().bottom;
+  rec(c.w, '화면:회화 힌트 펼침 입력창', Math.max(ib, sb) <= c.win.innerHeight + 1,
+    '입력=' + Math.round(ib) + ' 전송=' + Math.round(sb) + ' 화면=' + c.win.innerHeight);
+  boxScan(c, 'chat-hint-open');
+  var hb2 = q('#chatHintBtn'); if (hb2 && hb2.textContent.indexOf('접기') > -1) { hb2.click(); await sleep(100); }
   c.win.__QA.chatClose(); await sleep(120);
 
   /* 통계 */
@@ -1323,6 +1331,10 @@ async function chatLadderTests(c) {
     return x !== h3.hint && x.indexOf(' ,') < 0 && /[.?!]$/.test(x);
   }), subs.join(' | '));
   boxScan(c, 'chat-hint3');
+  var inpEl = q('#chatText');
+  var inpBottom = Math.round(inpEl.getBoundingClientRect().bottom);
+  rec(c.w, '힌트:펼쳐도 입력창 보임', inpBottom <= c.win.innerHeight + 1,
+    '입력창 아래=' + inpBottom + ' · 화면=' + c.win.innerHeight);
   var subBtn = Array.prototype.slice.call(doc.querySelectorAll('#chatSuggest .sug.sub'))[0];
   if (subBtn) { subBtn.click(); await sleep(150); }
   rec(c.w, '힌트:치환 문장 탭 → 입력창', !!subBtn && q('#chatText').value === (subBtn ? subBtn.textContent : ''), (q('#chatText').value || '').slice(0, 50));

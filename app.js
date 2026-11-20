@@ -3204,6 +3204,8 @@
 
   function closeChatRoom() {
     chatTopic = null;
+    var rm = $('#chatRoom');
+    if (rm) rm.classList.remove('hint-on');
     $('#chatRoom').hidden = true;
     $('#chatTopics').hidden = false;
     $('#tabbar').hidden = false;
@@ -3376,10 +3378,15 @@
         if (speakOk) speak(c.t);
       });
     });
+    /* 힌트를 펼치면 대화 로그를 줄여 입력창이 화면 밖으로 밀리지 않게 한다 */
+    var room = $('#chatRoom');
+    if (room) room.classList.toggle('hint-on', !!(hint && stage >= 1));
     var hb = $('#chatHintBtn');
     if (hb) hb.addEventListener('click', function () {
       chatHintStage = chatHintStage >= 3 ? 0 : chatHintStage + 1;
       paintChatSuggest();
+      var box = $('.chat-input') || $('#chatText');
+      if (chatHintStage >= 1 && box && box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
     });
     var hs = $('#chatHintSay');
     if (hs) hs.addEventListener('click', function () { speak(hint); });
