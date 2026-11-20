@@ -902,6 +902,7 @@ main { flex: 1; padding: 6px 16px 20px; }
 .ch-full span { font-size: 10px; font-weight: 800; color: var(--text-dim); margin-right: 2px; }
 .sug.full { border-color: var(--ok); color: var(--ok); font-weight: 700; white-space: normal; text-align: left; overflow: visible; }
 .sug.sub { border-style: dashed; color: var(--text-soft); white-space: normal; text-align: left; }
+.sug-lbl.sub-lbl { margin-top: 2px; }
 .fix-top { margin: 0 0 2px; font-size: 10.5px; font-weight: 800; color: var(--ok); }
 .fix-list { list-style: none; margin: 4px 0 0; padding: 0; }
 .fix-list li { margin: 4px 0; line-height: 1.4; }

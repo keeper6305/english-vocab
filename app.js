@@ -3356,9 +3356,15 @@
     if (stage >= 3 && pat) {
       pat.slots.forEach(function (s) { chips.push({ t: pat.pat.replace('___', s), sub: true }); });
     }
-    html += chips.map(function (c, i) {
-      return '<button class="sug' + (c.full ? ' full' : '') + (c.sub ? ' sub' : '') + '" data-i="' + i + '">' + escapeHtml(c.t) + '</button>';
-    }).join('');
+    chips.forEach(function (c, i) { c.idx = i; });
+    function chipHtml(c) {
+      return '<button class="sug' + (c.full ? ' full' : '') + (c.sub ? ' sub' : '') + '" data-i="' + c.idx + '">' + escapeHtml(c.t) + '</button>';
+    }
+    html += chips.filter(function (c) { return !c.sub; }).map(chipHtml).join('');
+    var subs = chips.filter(function (c) { return c.sub; });
+    if (subs.length) {
+      html += '<span class="sug-lbl sub-lbl">같은 패턴으로 바꿔 말하기</span>' + subs.map(chipHtml).join('');
+    }
     if (stage >= 2 && speakOk) html += '<button class="mini-say" id="chatHintSay">🔊 문장 듣기</button>';
     sug.innerHTML = html;
     $$('#chatSuggest .sug').forEach(function (b) {
