@@ -3381,6 +3381,9 @@
     /* 힌트를 펼치면 대화 로그를 줄여 입력창이 화면 밖으로 밀리지 않게 한다 */
     var room = $('#chatRoom');
     if (room) room.classList.toggle('hint-on', !!(hint && stage >= 1));
+    /* 로그 높이가 줄어든 뒤에는 다시 맨 아래로 — 방금 온 AI 말이 잘려 보이지 않게 */
+    var lg = $('#chatLog');
+    if (lg) lg.scrollTop = lg.scrollHeight;
     var hb = $('#chatHintBtn');
     if (hb) hb.addEventListener('click', function () {
       chatHintStage = chatHintStage >= 3 ? 0 : chatHintStage + 1;

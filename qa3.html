@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>QA v4.1.0 전수 클릭 점검</title>
+<title>QA v4.1.2 전수 클릭 점검</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; margin: 0; padding: 14px; background: #eef0f6; color: #191c2b; }
@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>v4.1.0 전수 클릭 점검 — 세트 반복 · 해설 · 음성 · 중도저장 · 회화방(힌트 사다리·교정 카드) · 오답 회수 1회전 · 단어장 · 통계 · 뒤로가기 · 360/390</h1>
+<h1>v4.1.2 전수 클릭 점검 — 세트 반복 · 해설 · 음성 · 중도저장 · 회화방(힌트 사다리·교정 카드) · 오답 회수 1회전 · 단어장 · 통계 · 뒤로가기 · 360/390</h1>
 <div id="sum">시작 중…</div>
 <pre id="out">…</pre>
 <div class="frames" id="frames"></div>
@@ -1331,6 +1331,10 @@ async function chatLadderTests(c) {
     return x !== h3.hint && x.indexOf(' ,') < 0 && /[.?!]$/.test(x);
   }), subs.join(' | '));
   boxScan(c, 'chat-hint3');
+  var lg = q('#chatLog');
+  var atBottom = lg.scrollHeight - lg.scrollTop - lg.clientHeight <= 8;
+  rec(c.w, '힌트:최신 말풍선 잘리지 않음', atBottom,
+    'scroll=' + Math.round(lg.scrollTop) + '/' + (lg.scrollHeight - lg.clientHeight));
   var inpEl = q('#chatText');
   var inpBottom = Math.round(inpEl.getBoundingClientRect().bottom);
   rec(c.w, '힌트:펼쳐도 입력창 보임', inpBottom <= c.win.innerHeight + 1,
