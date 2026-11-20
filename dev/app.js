@@ -2926,7 +2926,7 @@
       id: 'free', icon: '💬', name: '자유 대화', sub: '아무 주제나',
       open: { en: 'Hi! Nice to talk with you. What would you like to talk about today?', ko: '안녕하세요! 오늘은 무슨 이야기를 해볼까요?' },
       hints: ['I want to talk about my day.', 'Can we talk about travel?', 'I practiced English today.'],
-      pattern: { pat: 'I want to talk about ___ .', slots: ['my day', 'travel', 'a movie I watched'] },
+      pattern: { pat: 'I want to talk about ___.', slots: ['my day', 'travel', 'a movie I watched'] },
       script: [
         { en: 'That sounds interesting. Tell me more about it.', ko: '흥미롭네요. 조금 더 말해 주세요.', hint: 'It was really fun because…' },
         { en: 'I see. How did that make you feel?', ko: '그렇군요. 기분은 어땠어요?', hint: 'I felt happy / nervous / tired.' },
@@ -2937,7 +2937,7 @@
       id: 'cafe', icon: '☕', name: '카페 주문', sub: '주문·사이즈·포장',
       open: { en: 'Hi there! Welcome. What can I get for you?', ko: '어서 오세요! 무엇을 드릴까요?' },
       hints: ['Can I get a large iced Americano, please?', "I'd like a latte, please.", 'Could I have a cappuccino?'],
-      pattern: { pat: 'Could I get ___ , please?', slots: ['a large iced Americano', 'a hot latte', 'two croissants'] },
+      pattern: { pat: 'Could I get ___, please?', slots: ['a large iced Americano', 'a hot latte', 'two croissants'] },
       script: [
         { en: 'Sure. What size would you like — small, medium, or large?', ko: '네. 사이즈는 어떻게 하시겠어요?', hint: 'Large, please.' },
         { en: 'Got it. For here or to go?', ko: '네. 드시고 가시나요, 포장인가요?', hint: 'To go, please.' },
@@ -2950,7 +2950,7 @@
       id: 'airport', icon: '✈️', name: '공항·여행', sub: '체크인·수하물',
       open: { en: 'Good morning. May I see your passport, please?', ko: '안녕하세요. 여권 좀 보여 주시겠어요?' },
       hints: ['Here you are.', "Sure, here's my passport.", 'Yes, of course.'],
-      pattern: { pat: "I'm flying to ___ .", slots: ['New York', 'Tokyo', 'Busan'] },
+      pattern: { pat: "I'm flying to ___.", slots: ['New York', 'Tokyo', 'Busan'] },
       script: [
         { en: 'Thank you. Where are you flying to today?', ko: '감사합니다. 오늘 어디로 가시나요?', hint: "I'm flying to New York." },
         { en: 'Any bags to check?', ko: '부치실 짐이 있나요?', hint: 'Just this one, please.' },
@@ -2962,7 +2962,7 @@
       id: 'biz', icon: '💼', name: '비즈니스 스몰토크', sub: '업무·일정·근황',
       open: { en: 'Morning! How is the project going?', ko: '좋은 아침이에요! 프로젝트는 어떻게 되어 가요?' },
       hints: ["It's going well, thanks.", "We're almost done.", "We hit a small delay."],
-      pattern: { pat: "It's going ___ .", slots: ['well, thanks', 'a bit slow', 'better than expected'] },
+      pattern: { pat: "It's going ___.", slots: ['well, thanks', 'a bit slow', 'better than expected'] },
       script: [
         { en: 'Good to hear. Do you need anything from my side?', ko: '다행이네요. 제가 도와드릴 게 있을까요?', hint: 'Could you review the draft by Friday?' },
         { en: 'Sure, I can do that. When is the deadline again?', ko: '그럼요. 마감이 언제였죠?', hint: "It's due on the 24th." },
@@ -2974,7 +2974,7 @@
       id: 'daily', icon: '🙋', name: '일상 안부', sub: '근황·주말',
       open: { en: 'Hey! Long time no see. How have you been?', ka: '', ko: '오랜만이야! 어떻게 지냈어?' },
       hints: ["I've been busy but good.", "Pretty good, thanks. How about you?", "Not bad. How are you?"],
-      pattern: { pat: "I've been ___ .", slots: ['busy but good', 'pretty good, thanks', 'a little tired'] },
+      pattern: { pat: "I've been ___.", slots: ['busy but good', 'pretty good, thanks', 'a little tired'] },
       script: [
         { en: 'Same here. Did you do anything fun on the weekend?', ko: '나도 그래. 주말에 재미있는 일 있었어?', hint: 'I went hiking with friends.' },
         { en: 'That sounds great. How was the weather?', ko: '좋았겠다. 날씨는 어땠어?', hint: 'It was cold but sunny.' },
@@ -2985,7 +2985,7 @@
       id: 'restaurant', icon: '🍽️', name: '식당 예약', sub: '인원·시간·이름',
       open: { en: 'Thank you for calling Bella Kitchen. How may I help you?', ko: '벨라 키친입니다. 무엇을 도와드릴까요?' },
       hints: ["I'd like to make a reservation.", 'I want to book a table for two.', 'Can I reserve a table?'],
-      pattern: { pat: "I'd like to make a reservation for ___ .", slots: ['two people at seven', 'four people tonight', 'a table for six on Friday'] },
+      pattern: { pat: "I'd like to make a reservation for ___.", slots: ['two people at seven', 'four people tonight', 'a table for six on Friday'] },
       script: [
         { en: 'Of course. For how many people?', ko: '네. 몇 분이세요?', hint: 'For four people, please.' },
         { en: 'And what time would you like?', ko: '몇 시로 예약해 드릴까요?', hint: 'Seven thirty, please.' },
@@ -2997,7 +2997,7 @@
       id: 'shopping', icon: '🛍️', name: '쇼핑·환불', sub: '교환·환불·영수증',
       open: { en: 'Hi, how can I help you today?', ko: '안녕하세요, 무엇을 도와드릴까요?' },
       hints: ['I want to return this shirt.', 'This item is too small.', 'Can I get a refund?'],
-      pattern: { pat: 'I want to ___ .', slots: ['return this shirt', 'get a refund on this', 'exchange this for a bigger size'] },
+      pattern: { pat: 'I want to ___.', slots: ['return this shirt', 'get a refund on this', 'exchange this for a bigger size'] },
       script: [
         { en: 'I see. Do you have the receipt with you?', ko: '그렇군요. 영수증 가지고 계세요?', hint: 'Yes, here it is.' },
         { en: 'Thank you. Was it worn or washed?', ko: '감사합니다. 입거나 세탁하셨나요?', hint: 'No, I only tried it on.' },
@@ -3219,12 +3219,12 @@
     'which please one two too much many more most about into over under again').split(' ').forEach(function (w) { HINT_KEEP[w] = 1; });
   var chatHintStage = 0;
 
-  function maskWord(t) {
+  function maskWord(t, force) {
     var m = String(t).match(/^([^A-Za-z]*)([A-Za-z][A-Za-z'’-]*)([^A-Za-z]*)$/);
     if (!m) return t;
     var core = m[2];
-    if (core.length <= 1 || HINT_KEEP[core.toLowerCase()]) return t;
-    return m[1] + core.charAt(0) + new Array(Math.min(core.length, 9)).join('_') + m[3];
+    if (!force && (core.length <= 1 || HINT_KEEP[core.toLowerCase()])) return t;
+    return m[1] + core.charAt(0) + new Array(Math.max(2, Math.min(core.length, 9))).join('_') + m[3];
   }
 
   /* 지금 대화에서 이어 말할 문장 — 내장 대화의 다음 힌트, LLM이 준 NEXT, 주제 예시 순서 */
@@ -3238,11 +3238,18 @@
     return step.hint || (chatTopic.hints || [])[0] || '';
   }
 
-  /* 첫 3단어는 그대로(청크의 시작이 보이게), 나머지는 기능어만 남기고 첫 글자 스켈레톤 */
+  /* 첫 3단어(짧은 문장은 첫 단어)는 그대로 두고 나머지는 기능어만 남기고 첫 글자 스켈레톤 */
   function chatSkeleton(s) {
-    var toks = String(s || '').trim().split(/\s+/);
-    if (toks.length < 4) return String(s || '');
-    return toks.map(function (t, i) { return i < 3 ? t : maskWord(t); }).join(' ');
+    var raw = String(s || '').trim();
+    var toks = raw.split(/\s+/);
+    if (!raw || !toks.length) return raw;
+    var head = toks.length >= 5 ? 3 : toks.length >= 4 ? 2 : 0;
+    var out = toks.map(function (t, i) { return i < head ? t : maskWord(t); });
+    if (out.join(' ') === toks.join(' ')) {
+      var mid = Math.max(0, Math.floor(toks.length / 2));
+      out[mid] = maskWord(toks[mid], true);
+    }
+    return out.join(' ');
   }
 
   /* 틀린 부분·고친 부분에 표시를 입힌다 (겹치지 않게 앞에서부터) */
@@ -3344,7 +3351,7 @@
     var chips = [];
     if (stage >= 2) chips.push({ t: hint, full: true });
     (chatTopic.hints || []).slice(0, stage >= 2 ? 1 : 2).forEach(function (h) {
-      if (h !== hint) chips.push({ t: h });
+      if (stage < 3 && h !== hint) chips.push({ t: h });
     });
     if (stage >= 3 && pat) {
       pat.slots.forEach(function (s) { chips.push({ t: pat.pat.replace('___', s), sub: true }); });

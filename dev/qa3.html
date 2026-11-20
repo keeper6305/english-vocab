@@ -1315,9 +1315,11 @@ async function chatLadderTests(c) {
   rec(c.w, '힌트:문장 듣기 버튼', !!q('#chatHintSay'), 'btn=' + !!q('#chatHintSay'));
   q('#chatHintBtn').click(); await sleep(100);
   var h3 = qa.hintState();
-  var subs = h3.chips.filter(function (x) { return h3.slots.some(function (sl) { return x.indexOf(sl) > -1; }); });
-  rec(c.w, '힌트:3단계 패턴 치환 3개', h3.stage === 3 && subs.length === 3 && subs.every(function (x) { return x !== h3.hint; }),
-    subs.join(' | '));
+  var subBtns = Array.prototype.slice.call(doc.querySelectorAll('#chatSuggest .sug.sub'));
+  var subs = subBtns.map(function (b) { return b.textContent; });
+  rec(c.w, '힌트:3단계 패턴 치환 3개', h3.stage === 3 && subBtns.length === 3 && subs.every(function (x) {
+    return x !== h3.hint && x.indexOf(' ,') < 0 && /[.?!]$/.test(x);
+  }), subs.join(' | '));
   boxScan(c, 'chat-hint3');
   var subBtn = Array.prototype.slice.call(doc.querySelectorAll('#chatSuggest .sug.sub'))[0];
   if (subBtn) { subBtn.click(); await sleep(150); }
