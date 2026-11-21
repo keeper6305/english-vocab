@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>촬영용 · 영어 회화 앱</title>
+<style>
+  body { margin: 0; background: #dfe3ee; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+  .devices { display: flex; gap: 18px; padding: 14px; align-items: flex-start; }
+  iframe { border: 0; background: #fff; border-radius: 22px; box-shadow: 0 10px 30px rgba(20,24,45,.18); }
+  .cap { font-size: 12px; color: #4a5068; text-align: center; margin-top: 6px; font-weight: 700; }
+</style>
+</head>
+<body>
+<script>
+/* 개발용 페이지 — 이 페이지를 열 때는 앱 서비스워커를 잠시 끊어 예전 껍데기 캐시가
+   iframe 으로 흘러들지 않게 한다(앱 화면을 다시 열면 스스로 재등록된다) */
+if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+  navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+}
+if (window.caches) { caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }); }
+</script>
+<div class="devices">
+  <div><iframe id="f390" width="390" height="844"></iframe><div class="cap">390px</div></div>
+  <div><iframe id="f360" width="360" height="844"></iframe><div class="cap">360px</div></div>
+</div>
+<script>
+/* 캐시된 index.html 이 옛 app.js 를 물고 오지 않게 매번 새로 받는다 */
+(function () {
+  var cb = '?qa=1&cb=' + Date.now();
+  document.getElementById('f390').src = 'index.html' + cb;
+  document.getElementById('f360').src = 'index.html' + cb;
+})();
+</script>
+<script>
+const state = new URLSearchParams(location.search).get('state') || 'home';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function drive(f) {
+  await sleep(2600);
+  const w = f.contentWindow, d = f.contentDocument;
+  const q = s => d.querySelector(s);
+  if (!w || !d || !q('#presetSeg') || !w.__QA) { document.title = 'ERR not ready'; return; }
+  w.confirm = () => true;
+  const qa = () => w.__QA;
+  const answer = ok => {
+    const card = qa().state().S.queue[qa().state().S.i].c;
+    if (!q('#quizCard').hidden) {
+      const ans = qa().options().answer;
+      const btns = Array.from(d.querySelectorAll('#quizOptions .opt'));
+      const b = ok ? btns.find(x => x.dataset.val === ans) : btns.find(x => x.dataset.val !== ans);
+      if (b) b.click();
+    }
+  };
+  try {
+    if (state === 'home') {
+      q('#startBtn').click(); await sleep(300);
+      answer(true); await sleep(120); q('#fbNext').click(); await sleep(120);
+      answer(true); await sleep(120); q('#fbNext').click(); await sleep(120);
+      answer(true); await sleep(200);
+      q('#studyBack').click(); await sleep(400);
+    } else if (state === 'combo') {
+      q('#startBtn').click(); await sleep(300);
+      for (let i = 0; i < 4; i++) { answer(true); await sleep(90); if (q('#fbNext')) q('#fbNext').click(); await sleep(90); }
+      w.scrollTo(0, 0); await sleep(200);
+    } else if (state === 'feedback') {
+      q('#startBtn').click(); await sleep(300);
+      answer(false); await sleep(400);
+    } else if (state === 'result') {
+      q('#startBtn').click(); await sleep(300);
+      let n = 0;
+      while (q('#resultBox').hidden && n++ < 14) {
+        const i = qa().state().S.i;
+        answer(n % 3 !== 0); await sleep(90);
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(90);
+      }
+      await sleep(300);
+    } else if (state === 'goal') {
+      q('.tab[data-tab="home"]').click(); await sleep(200);
+    } else if (state === 'stats') {
+      q('.tab[data-tab="stats"]').click(); await sleep(400);
+    } else if (state === 'list') {
+      q('.tab[data-tab="list"]').click(); await sleep(400);
+    } else if (state === 'speak') {
+      q('.tab[data-tab="speak"]').click(); await sleep(300);
+      q('#speakType .seg[data-type="sent"]').click(); await sleep(120);
+      q('#speakLv .chip[data-lv="6"]').click(); await sleep(120);
+      q('#speakStart').click(); await sleep(400);
+      const st = qa().speakState();
+      if (st) qa().speakCheck(st.target);
+      await sleep(400);
+    } else if (state === 'chat') {
+      q('.tab[data-tab="chat"]').click(); await sleep(350);
+      q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(350);
+      qa().chatSend('I very like this cafe. Yesterday I go here.'); await sleep(600);
+      qa().chatSend('Can I get a large latte?'); await sleep(600);
+    } else if (state === 'hint' || state === 'hintdark') {
+      if (state === 'hintdark') { q('#themeBtn').click(); await sleep(250); }
+      q('.tab[data-tab="chat"]').click(); await sleep(320);
+      q('#topicGrid .topic[data-t="cafe"]').click(); await sleep(320);
+      qa().chatSend('I very like this cafe. Yesterday I go here.'); await sleep(700);
+      for (let i = 0; i < 3; i++) { const hb = q('#chatHintBtn'); if (hb) { hb.click(); await sleep(120); } }
+      await sleep(200);
+    } else if (state === 'recall' || state === 'recalldark') {
+      if (state === 'recalldark') { q('#themeBtn').click(); await sleep(250); }
+      q('#startBtn').click(); await sleep(300);
+      let n2 = 0;
+      while (q('#resultBox').hidden && n2++ < 14) {
+        answer(n2 % 3 !== 0); await sleep(80);
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(80);
+      }
+      await sleep(320);
+    } else if (state === 'dark') {
+      q('#themeBtn').click(); await sleep(250);
+      q('#startBtn').click(); await sleep(300);
+      answer(true); await sleep(150); q('#fbNext').click(); await sleep(150);
+      answer(false); await sleep(400);
+    }
+  } catch (e) {
+    document.title = 'ERR ' + e.message;
+  }
+}
+
+drive(document.getElementById('f390'));
+</script>
+</body>
+</html>
