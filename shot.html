@@ -111,6 +111,37 @@ async function drive(f) {
         await sleep(80);
       }
       await sleep(320);
+    } else if (state === 'v42chunk' || state === 'v42chunkdark') {
+      if (state === 'v42chunkdark') { q('#themeBtn').click(); await sleep(250); }
+      qa().startConv('blank'); await sleep(350);
+      for (let i = 0; i < 12; i++) {
+        const st = qa().state();
+        if (!st.S || st.S.i >= st.S.queue.length) break;
+        const card = st.S.queue[st.S.i].c;
+        const pd = qa().pattern(card.w);
+        const ok = qa().options().answer;
+        const btns = Array.from(d.querySelectorAll('#blankOptions .opt'));
+        const b = btns.find(x => String(x.dataset.val).toLowerCase() === String(ok).toLowerCase());
+        if (b) b.click(); else break;
+        await sleep(160);
+        if (pd && pd.slots.length && q('#feedback .pat')) break;
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(150);
+      }
+      await sleep(250);
+      const pb = q('#feedback .pat');
+      if (pb) pb.scrollIntoView({ block: 'center' });
+      await sleep(250);
+    } else if (state === 'v42chat') {
+      q('.tab[data-tab="chat"]').click(); await sleep(320);
+      q('#topicGrid .topic[data-t="daily"]').click(); await sleep(320);
+      qa().chatSend('I very like this place. Yesterday I go to the gym.'); await sleep(700);
+      qa().chatSend('He go to school everyday.'); await sleep(700);
+      qa().chatClose(); await sleep(350);
+      const cards = Array.from(d.querySelectorAll('.card'));
+      const fc = cards.find(x => x.textContent.indexOf('내 문장 기록') > -1);
+      if (fc) fc.scrollIntoView({ block: 'start' });
+      await sleep(250);
     } else if (state === 'dark') {
       q('#themeBtn').click(); await sleep(250);
       q('#startBtn').click(); await sleep(300);
