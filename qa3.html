@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>QA v4.1.2 전수 클릭 점검</title>
+<title>QA v4.2.0 전수 클릭 점검</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; margin: 0; padding: 14px; background: #eef0f6; color: #191c2b; }
@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>v4.1.2 전수 클릭 점검 — 세트 반복 · 해설 · 음성 · 중도저장 · 회화방(힌트 사다리·교정 카드) · 오답 회수 1회전 · 단어장 · 통계 · 뒤로가기 · 360/390</h1>
+<h1>v4.2.0 전수 클릭 점검 — 끊어읽기(청크·1.0x/0.75x) · 패턴 치환 · 교정 누적 통계→10문제 · 회수 도트/콤보 · 세트 반복 · 회화방 · 단어장 · 통계 · 뒤로가기 · 360/390</h1>
 <div id="sum">시작 중…</div>
 <pre id="out">…</pre>
 <div class="frames" id="frames"></div>
@@ -1422,6 +1422,202 @@ async function recallTests(c) {
   rec(c.w, '홈:모순 안내 없음', q('#heroSub').textContent.indexOf('오늘 몫은 끝났어요') < 0, q('#heroSub').textContent);
 }
 
+
+/* ============================================================
+ *  V. v4.2.0 — 청크 끊어읽기 · 패턴 치환 (360/390 공통)
+ * ============================================================ */
+async function v42PanelTests(c) {
+  var q = c.q, qa = c.win.__QA, doc = c.doc;
+  /* 청크 나누기 자체 — 데이터 문장으로 직접 확인 */
+  var a = qa.chunks('Could I get some more water?');
+  rec(c.w, '청크:2조각', a.length === 2 && a[0] === 'Could I get' && a[1] === 'some more water?', a.join(' | '));
+  var b = qa.chunks('Actually, I think there has been a mix-up with my order.');
+  rec(c.w, '청크:3조각+·5단어 이하', b.length >= 3 && b.every(function (x) { return x.split(' ').length <= 5; }), b.join(' | '));
+  rec(c.w, '청크:원문 보존', b.join(' ') === 'Actually, I think there has been a mix-up with my order.', b.join(' '));
+  var d1 = qa.chunks('Yes.');
+  rec(c.w, '청크:한 단어 그대로', d1.length === 1 && d1[0] === 'Yes.', d1.join('|'));
+  rec(c.w, '청크:빈 문자열', qa.chunks('').length === 0, 'ok');
+  var d2 = qa.chunks('I have no idea what to get her.');
+  rec(c.w, '청크:긴 문장 2조각+', d2.length >= 2, d2.join(' | '));
+
+  /* 회화 문장 학습 → 피드백 청크·패턴 패널. 두 패널을 다 만족하는 카드가 나올 때까지 넘긴다 */
+  /* 패턴 사전 검증 — 데이터 문장으로 직접 */
+  var p1 = qa.pattern('Could I get some more water?');
+  rec(c.w, '치환:검증된 틀', !!p1 && p1.frame === 'Could I get ___?' && p1.slots.length === 3 && p1.slots.indexOf('an extra blanket') > -1,
+    p1 ? p1.frame + ' · ' + p1.slots.join(' / ') : 'none');
+  rec(c.w, '치환:불확실하면 숨김', qa.pattern('Keep the change.') === null, JSON.stringify(qa.pattern('Keep the change.')));
+  var p2 = qa.pattern('I very like this place.');
+  rec(c.w, '치환:Lv.6 아니면 없음', p2 === null, JSON.stringify(p2));
+
+  var err = await startLevel(c, 6, 'blank');
+  rec(c.w, '청크:회화 세트 시작', !err && !q('#view-study').hidden, err || 'ok');
+  var chunkOk = '', patOk = '';
+  for (var t = 0; t < 12 && (!chunkOk || !patOk); t++) {
+    if (q('#resultBox') && !q('#resultBox').hidden) {
+      await startLevel(c, 6, 'blank');
+      if (q('#view-study').hidden) break;
+    }
+    var card = curCard(c);
+    if (!card) break;
+    var sent = String(card._lv === 6 ? card.w : (card.e || card.w)).replace(/\s+/g, ' ').trim();
+    var ch = qa.chunks(sent);
+    var pat0 = qa.pattern(card.w);
+    var hasPat = !!(pat0 && pat0.slots.length);
+    await answerOne(c, true);
+    await sleep(40);
+    var chips = doc.querySelectorAll('#feedback .chk-chip');
+    if (!chunkOk && ch.length >= 2) {
+      rec(c.w, '청크:피드백 패널', !!q('#feedback .chk') && chips.length === ch.length, 'chips=' + chips.length + '/' + ch.length);
+      var joined = Array.prototype.map.call(chips, function (x) { return x.textContent; }).join(' ');
+      rec(c.w, '청크:패널 문장 일치', joined === sent, joined.slice(0, 60));
+      rec(c.w, '청크:속도 칩 2개', doc.querySelectorAll('#feedback .chk .chk-sp').length === 2,
+        'n=' + doc.querySelectorAll('#feedback .chk .chk-sp').length);
+      boxScan(c, 'feedback-chunk');
+      var before = (c.win.__spoken || []).length;
+      chips[0].click(); await sleep(140);
+      var sp = (c.win.__spoken || [])[before] || {};
+      rec(c.w, '청크:칩 탭=그 조각 발음', sp.text === chips[0].textContent, 'spoken=' + sp.text);
+      rec(c.w, '청크:칩 활성 표시', chips[0].classList.contains('on'), chips[0].className);
+      before = (c.win.__spoken || []).length;
+      q('#feedback [data-act="seq"]').click();
+      await sleep(420);
+      var seq = (c.win.__spoken || []).slice(before).map(function (x) { return x.text; });
+      rec(c.w, '청크:한 청크씩 재생', seq.length >= 1 && seq[0] === chips[0].textContent, seq.join(' / ').slice(0, 50));
+      before = (c.win.__spoken || []).length;
+      q('#feedback [data-act="all"]').click(); await sleep(140);
+      var spAll = (c.win.__spoken || [])[before] || {};
+      rec(c.w, '청크:전체 듣기', spAll.text === sent, 'spoken=' + String(spAll.text).slice(0, 40));
+      q('#feedback .chk [data-rate="0.75"]').click(); await sleep(120);
+      rec(c.w, '청크:0.75x 설정', Number(qa.state().speed) === 0.75 && q('#speedBtn').textContent.indexOf('0.75') > -1,
+        'speed=' + qa.state().speed + ' · ' + q('#speedBtn').textContent);
+      before = (c.win.__spoken || []).length;
+      chips[1].click(); await sleep(140);
+      var spS = (c.win.__spoken || [])[before] || {};
+      rec(c.w, '청크:느린 재생 반영', Number(spS.rate) === 0.75, 'rate=' + spS.rate);
+      q('#feedback .chk [data-rate="1"]').click(); await sleep(120);
+      rec(c.w, '청크:1.0x 복귀', Number(qa.state().speed) === 1 && q('#speedBtn').textContent.indexOf('1.0') > -1, q('#speedBtn').textContent);
+      chunkOk = sent;
+    }
+    if (!patOk && hasPat) {
+      var pat = q('#feedback .pat');
+      rec(c.w, '치환:패널', !!pat, pat ? 'ok' : 'none');
+      if (pat) {
+        var frame = pat.dataset.frame || '';
+        var pchips = doc.querySelectorAll('#feedback .pat .pat-chip');
+        rec(c.w, '치환:틀에 빈칸', frame.indexOf('___') > -1, frame);
+        rec(c.w, '치환:대체 표현 3개', pchips.length === 3, 'chips=' + pchips.length);
+        rec(c.w, '치환:틀 강조', !!q('#feedback .pat .pat-frame u'), 'ok');
+        var slot0 = pchips[0].dataset.slot;
+        var before2 = (c.win.__spoken || []).length;
+        pchips[0].click(); await sleep(140);
+        var ps = (c.win.__spoken || [])[before2] || {};
+        rec(c.w, '치환:칩=완성 문장 발음', ps.text === frame.replace('___', slot0), 'spoken=' + ps.text);
+        q('#feedback .pat [data-act="own"]').click(); await sleep(90);
+        var own = q('#feedback .pat .pat-own');
+        rec(c.w, '치환:내 말 넣기 열림', !!own && !own.hidden, own ? 'hidden=' + own.hidden : 'none');
+        q('#feedback .pat .pat-input').value = 'two coffees';
+        before2 = (c.win.__spoken || []).length;
+        q('#feedback .pat [data-act="ownsay"]').click(); await sleep(160);
+        var os = (c.win.__spoken || [])[before2] || {};
+        rec(c.w, '치환:내 말로 재생', os.text === frame.replace('___', 'two coffees'), 'spoken=' + os.text);
+        boxScan(c, 'feedback-pattern');
+        patOk = sent;
+      }
+    }
+  }
+  rec(c.w, '청크:다청크 피드백 확인', !!chunkOk, chunkOk ? chunkOk.slice(0, 40) : '없음');
+  rec(c.w, '치환:패턴 카드 확인', !!patOk, patOk ? patOk.slice(0, 40) : '없음');
+  /* 틀이 불확실한 카드는 아무것도 그리지 않는다 */
+  await leaveStudy(c);
+}
+
+/* ============================================================
+ *  W. v4.2.0 — 말하기 끊어읽기 · 교정 누적 → 10문제 · 회수 도트
+ * ============================================================ */
+async function v42SpeakTests(c) {
+  var q = c.q, doc = c.doc;
+  q('.tab[data-tab="speak"]').click(); await sleep(150);
+  q('#speakType .seg[data-type="sent"]').click(); await sleep(90);
+  q('#speakStart').click(); await sleep(240);
+  var chips = doc.querySelectorAll('#speakChunks .chk-chip');
+  rec(c.w, '말하기:끊어읽기 칩', chips.length >= 1, 'chips=' + chips.length);
+  if (chips.length) {
+    var before = (c.win.__spoken || []).length;
+    chips[0].click(); await sleep(150);
+    var sp = (c.win.__spoken || [])[before] || {};
+    rec(c.w, '말하기:칩 재생', sp.text === chips[0].textContent, 'spoken=' + sp.text);
+    boxScan(c, 'speak-chunks');
+  }
+  rec(c.w, '말하기:목표 문장 유지', q('#speakTarget').textContent.length > 3, q('#speakTarget').textContent.slice(0, 40));
+  c.win.__QA.speakEnd(); await sleep(180);
+  rec(c.w, '말하기:종료 시 칩 정리', doc.querySelectorAll('#speakChunks .chk-chip').length === 0,
+    'left=' + doc.querySelectorAll('#speakChunks .chk-chip').length);
+}
+
+async function v42ChatFixTests(c) {
+  var q = c.q, qa = c.win.__QA, doc = c.doc;
+  q('.tab[data-tab="chat"]').click(); await sleep(160);
+  q('#topicGrid .topic[data-t="daily"]').click(); await sleep(180);
+  q('#chatText').value = 'I very like this place. Yesterday I go to the gym.';
+  q('#chatSend').click(); await sleep(700);
+  q('#chatText').value = 'He go to school everyday.';
+  q('#chatSend').click(); await sleep(700);
+  qa.chatClose(); await sleep(180);
+  var st = qa.fixStats();
+  rec(c.w, '교정통계:집계', st.all >= 2 && st.today >= 2, 'today=' + st.today + ' all=' + st.all);
+  rec(c.w, '교정통계:오늘·누적 문구', q('#chatStats').textContent.indexOf('오늘 ' + st.today + '곳') > -1 &&
+    q('#chatStats').textContent.indexOf('누적 ' + st.all + '곳') > -1, q('#chatStats').textContent);
+  var tops = doc.querySelectorAll('#chatFixTop .fix-top-chip');
+  rec(c.w, '교정통계:자주 고친 곳', tops.length >= 1 && /[0-9]/.test(tops[0].textContent),
+    'chips=' + tops.length + ' · ' + (tops[0] ? tops[0].textContent : ''));
+  var fd = q('#chatFixDrill');
+  rec(c.w, '교정통계:연습 버튼', !!fd && !fd.hidden && fd.textContent.indexOf('10문제') > -1, fd ? fd.textContent : 'none');
+  boxScan(c, 'chat-fixstats');
+  if (fd && !fd.hidden) {
+    fd.click(); await sleep(280);
+    var s = qa.state().S;
+    rec(c.w, '교정연습:10문제 세트', !!s && s.mode === 'fix' && s.queue.length === 10, s ? s.mode + ' / ' + s.queue.length : 'none');
+    rec(c.w, '교정연습:첫 문제 화면', !q('#view-study').hidden && q('#studyCounter').textContent === '1/10', q('#studyCounter').textContent);
+    var rel = qa.fixCards();
+    var front = s ? s.queue.slice(0, rel.length).map(function (x) { return x.c.w; }) : [];
+    var hit = front.filter(function (w) { return rel.indexOf(w) > -1; }).length;
+    rec(c.w, '교정연습:관련 카드 먼저', rel.length > 0 && hit === Math.min(rel.length, front.length),
+      '관련 ' + rel.length + ' · 앞 ' + hit + ' [' + rel.slice(0, 2).join(' / ') + ']');
+    rec(c.w, '교정연습:결과 라벨', (s && s.label || '').indexOf('교정') > -1, s ? s.label : 'none');
+    await leaveStudy(c);
+  }
+}
+
+async function v42RecallTests(c) {
+  var q = c.q, qa = c.win.__QA, doc = c.doc;
+  await goHome(c);
+  await startMix(c, 'quiz');
+  for (var i = 0; i < 2; i++) { await answerOne(c, false); await sleep(20); }
+  var g = 0;
+  while (q('#resultBox').hidden && g++ < 20) await answerOne(c, true);
+  var rcl = q('#rRecall');
+  rec(c.w, '회수도트:회수 버튼', !!rcl && !rcl.hidden, rcl ? rcl.textContent : 'none');
+  if (rcl && !rcl.hidden) {
+    rcl.click(); await sleep(260);
+    rec(c.w, '회수도트:도트 회수 표시', doc.querySelectorAll('#studyDots i.rcl').length >= 2,
+      'rcl=' + doc.querySelectorAll('#studyDots i.rcl').length);
+    rec(c.w, '회수도트:회수 배지', qa.recallPill().indexOf('회수') > -1, qa.recallPill());
+    boxScan(c, 'study-recall');
+    await answerOne(c, true); await sleep(90);
+    var cmb = qa.combo();
+    rec(c.w, '회수도트:콤보 동작', cmb.combo >= 1 && cmb.best >= 1, 'combo=' + cmb.combo + ' best=' + cmb.best);
+    var g2 = 0;
+    while (q('#resultBox').hidden && g2++ < 12) await answerOne(c, true);
+    rec(c.w, '회수도트:결과 되찾음', q('#rSub').textContent.indexOf('되찾음') > -1, q('#rSub').textContent);
+    rec(c.w, '회수도트:결과 콤보 줄', q('#rCombo').textContent.indexOf('되찾음') > -1 &&
+      q('#rCombo').textContent.indexOf('최고 연속') > -1, q('#rCombo').textContent);
+    rec(c.w, '회수도트:카드별 표기', q('#rList').textContent.indexOf('되찾음') > -1, q('#rList').textContent.slice(0, 60));
+    q('#rHome').click(); await sleep(140);
+  }
+  /* v4.2 정적 자리표시 정리 — goalNote 는 렌더가 채운다 */
+  rec(c.w, '목표:자리표시 잔여 없음', q('#goalNote').textContent.indexOf('한 세트만 더') < 0, q('#goalNote').textContent);
+}
+
 async function resetTests(c) {
   var q = c.q;
   q('.tab[data-tab="stats"]').click(); await sleep(140);
@@ -1561,6 +1757,10 @@ async function run() {
   await section('ladder', deep, chatLadderTests);
   await section('chatfix', deep, chatFixTests);
   await section('recall', deep, recallTests);
+  for (var v = 0; v < ctxs.length; v++) await section('v42panel', ctxs[v], v42PanelTests);
+  await section('v42speak', deep, v42SpeakTests);
+  await section('v42chatfix', deep, v42ChatFixTests);
+  await section('v42recall', deep, v42RecallTests);
   await section('reset', deep, resetTests);
   rec(deep.w, '콘솔에러 0건', errors.length === 0, errors.slice(0, 5).join(' | '));
   render();
