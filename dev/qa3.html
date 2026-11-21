@@ -1443,7 +1443,7 @@ async function v42PanelTests(c) {
   /* 회화 문장 학습 → 피드백 청크·패턴 패널. 두 패널을 다 만족하는 카드가 나올 때까지 넘긴다 */
   /* 패턴 사전 검증 — 데이터 문장으로 직접 */
   var p1 = qa.pattern('Could I get some more water?');
-  rec(c.w, '치환:검증된 틀', !!p1 && p1.frame === 'Could I get ___?' && p1.slots.length === 3,
+  rec(c.w, '치환:검증된 틀', !!p1 && p1.frame === 'Could I get ___?' && p1.slots.length === 3 && p1.slots.indexOf('an extra blanket') > -1,
     p1 ? p1.frame + ' · ' + p1.slots.join(' / ') : 'none');
   rec(c.w, '치환:불확실하면 숨김', qa.pattern('Keep the change.') === null, JSON.stringify(qa.pattern('Keep the change.')));
   var p2 = qa.pattern('I very like this place.');
