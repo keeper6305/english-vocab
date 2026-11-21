@@ -3003,6 +3003,7 @@
     var pick = makeSet(pool, 'speak').map(function (q) { return q.c; });
     SP = { queue: pick, i: 0, results: [] };
     $('#speakSetup').hidden = true;
+    if ($('#speakChunks')) $('#speakChunks').innerHTML = '';
     $('#speakRun').hidden = false;
     $('#speakHist').hidden = true;
     $('#tabbar').hidden = true;
@@ -3104,6 +3105,7 @@
 
   function endSpeakRun() {
     SP = null;
+    if ($('#speakChunks')) $('#speakChunks').innerHTML = '';
     $('#speakRun').hidden = true;
     $('#speakSetup').hidden = false;
     $('#speakHist').hidden = false;

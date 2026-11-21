@@ -1440,72 +1440,84 @@ async function v42PanelTests(c) {
   var d2 = qa.chunks('I have no idea what to get her.');
   rec(c.w, '청크:긴 문장 2조각+', d2.length >= 2, d2.join(' | '));
 
-  /* 회화 문장 학습 → 피드백 청크·패턴 패널 */
+  /* 회화 문장 학습 → 피드백 청크·패턴 패널. 두 패널을 다 만족하는 카드가 나올 때까지 넘긴다 */
   var err = await startConv(c, '카페', 'blank');
   rec(c.w, '청크:회화 세트 시작', !err && !q('#view-study').hidden, err || 'ok');
-  await answerOne(c, true);
-  var chk = q('#feedback .chk');
-  var chips = doc.querySelectorAll('#feedback .chk .chk-chip');
-  rec(c.w, '청크:피드백 패널', !!chk && chips.length >= 2, 'chips=' + chips.length);
-  var card = curCard(c);
-  var full = card ? (card._lv === 6 ? card.w : card.e) : '';
-  var joined = Array.prototype.map.call(chips, function (x) { return x.textContent; }).join(' ');
-  rec(c.w, '청크:패널 문장 일치', joined === String(full).replace(/\s+/g, ' ').trim(), joined.slice(0, 60));
-  rec(c.w, '청크:속도 칩 2개', doc.querySelectorAll('#feedback .chk .chk-sp').length === 2,
-    'n=' + doc.querySelectorAll('#feedback .chk .chk-sp').length);
-  boxScan(c, 'feedback-chunk');
-
-  var before = (c.win.__spoken || []).length;
-  chips[0].click(); await sleep(140);
-  var sp = (c.win.__spoken || [])[before] || {};
-  rec(c.w, '청크:칩 탭=그 조각 발음', sp.text === chips[0].textContent, 'spoken=' + sp.text);
-  rec(c.w, '청크:칩 활성 표시', chips[0].classList.contains('on'), chips[0].className);
-
-  before = (c.win.__spoken || []).length;
-  q('#feedback [data-act="seq"]').click();
-  await sleep(420);
-  var seq = (c.win.__spoken || []).slice(before).map(function (x) { return x.text; });
-  rec(c.w, '청크:한 청크씩 재생', seq.length >= 1 && seq[0] === chips[0].textContent, seq.join(' / ').slice(0, 50));
-
-  before = (c.win.__spoken || []).length;
-  q('#feedback [data-act="all"]').click(); await sleep(140);
-  var spAll = (c.win.__spoken || [])[before] || {};
-  rec(c.w, '청크:전체 듣기', spAll.text === String(full).replace(/\s+/g, ' ').trim(), 'spoken=' + String(spAll.text).slice(0, 40));
-
-  q('#feedback .chk [data-rate="0.75"]').click(); await sleep(120);
-  rec(c.w, '청크:0.75x 설정', Number(qa.state().speed) === 0.75 && q('#speedBtn').textContent.indexOf('0.75') > -1,
-    'speed=' + qa.state().speed + ' · ' + q('#speedBtn').textContent);
-  before = (c.win.__spoken || []).length;
-  chips[1].click(); await sleep(140);
-  var spS = (c.win.__spoken || [])[before] || {};
-  rec(c.w, '청크:느린 재생 반영', Number(spS.rate) === 0.75, 'rate=' + spS.rate);
-  q('#feedback .chk [data-rate="1"]').click(); await sleep(120);
-  rec(c.w, '청크:1.0x 복귀', Number(qa.state().speed) === 1 && q('#speedBtn').textContent.indexOf('1.0') > -1, q('#speedBtn').textContent);
-
-  /* 패턴 치환 */
-  var pat = q('#feedback .pat');
-  rec(c.w, '치환:패널', !!pat, pat ? 'ok' : 'none');
-  if (pat) {
-    var frame = pat.dataset.frame || '';
-    var pchips = doc.querySelectorAll('#feedback .pat .pat-chip');
-    rec(c.w, '치환:틀에 빈칸', frame.indexOf('___') > -1, frame);
-    rec(c.w, '치환:대체 표현 3개', pchips.length === 3, 'chips=' + pchips.length);
-    rec(c.w, '치환:틀 강조', !!q('#feedback .pat .pat-frame u'), 'ok');
-    var slot0 = pchips[0].dataset.slot;
-    before = (c.win.__spoken || []).length;
-    pchips[0].click(); await sleep(140);
-    var ps = (c.win.__spoken || [])[before] || {};
-    rec(c.w, '치환:칩=완성 문장 발음', ps.text === frame.replace('___', slot0), 'spoken=' + ps.text);
-    q('#feedback .pat [data-act="own"]').click(); await sleep(90);
-    var own = q('#feedback .pat .pat-own');
-    rec(c.w, '치환:내 말 넣기 열림', !!own && !own.hidden, own ? 'hidden=' + own.hidden : 'none');
-    q('#feedback .pat .pat-input').value = 'two coffees';
-    before = (c.win.__spoken || []).length;
-    q('#feedback .pat [data-act="ownsay"]').click(); await sleep(160);
-    var os = (c.win.__spoken || [])[before] || {};
-    rec(c.w, '치환:내 말로 재생', os.text === frame.replace('___', 'two coffees'), 'spoken=' + os.text);
-    boxScan(c, 'feedback-pattern');
+  var chunkOk = '', patOk = '';
+  for (var t = 0; t < 12 && (!chunkOk || !patOk); t++) {
+    if (q('#resultBox') && !q('#resultBox').hidden) {
+      await startConv(c, '카페', 'blank');
+      if (q('#view-study').hidden) break;
+    }
+    var card = curCard(c);
+    if (!card) break;
+    var sent = String(card._lv === 6 ? card.w : (card.e || card.w)).replace(/\s+/g, ' ').trim();
+    var ch = qa.chunks(sent);
+    var hasPat = !!qa.pattern(card.w);
+    await answerOne(c, true);
+    await sleep(40);
+    var chips = doc.querySelectorAll('#feedback .chk-chip');
+    if (!chunkOk && ch.length >= 2) {
+      rec(c.w, '청크:피드백 패널', !!q('#feedback .chk') && chips.length === ch.length, 'chips=' + chips.length + '/' + ch.length);
+      var joined = Array.prototype.map.call(chips, function (x) { return x.textContent; }).join(' ');
+      rec(c.w, '청크:패널 문장 일치', joined === sent, joined.slice(0, 60));
+      rec(c.w, '청크:속도 칩 2개', doc.querySelectorAll('#feedback .chk .chk-sp').length === 2,
+        'n=' + doc.querySelectorAll('#feedback .chk .chk-sp').length);
+      boxScan(c, 'feedback-chunk');
+      var before = (c.win.__spoken || []).length;
+      chips[0].click(); await sleep(140);
+      var sp = (c.win.__spoken || [])[before] || {};
+      rec(c.w, '청크:칩 탭=그 조각 발음', sp.text === chips[0].textContent, 'spoken=' + sp.text);
+      rec(c.w, '청크:칩 활성 표시', chips[0].classList.contains('on'), chips[0].className);
+      before = (c.win.__spoken || []).length;
+      q('#feedback [data-act="seq"]').click();
+      await sleep(420);
+      var seq = (c.win.__spoken || []).slice(before).map(function (x) { return x.text; });
+      rec(c.w, '청크:한 청크씩 재생', seq.length >= 1 && seq[0] === chips[0].textContent, seq.join(' / ').slice(0, 50));
+      before = (c.win.__spoken || []).length;
+      q('#feedback [data-act="all"]').click(); await sleep(140);
+      var spAll = (c.win.__spoken || [])[before] || {};
+      rec(c.w, '청크:전체 듣기', spAll.text === sent, 'spoken=' + String(spAll.text).slice(0, 40));
+      q('#feedback .chk [data-rate="0.75"]').click(); await sleep(120);
+      rec(c.w, '청크:0.75x 설정', Number(qa.state().speed) === 0.75 && q('#speedBtn').textContent.indexOf('0.75') > -1,
+        'speed=' + qa.state().speed + ' · ' + q('#speedBtn').textContent);
+      before = (c.win.__spoken || []).length;
+      chips[1].click(); await sleep(140);
+      var spS = (c.win.__spoken || [])[before] || {};
+      rec(c.w, '청크:느린 재생 반영', Number(spS.rate) === 0.75, 'rate=' + spS.rate);
+      q('#feedback .chk [data-rate="1"]').click(); await sleep(120);
+      rec(c.w, '청크:1.0x 복귀', Number(qa.state().speed) === 1 && q('#speedBtn').textContent.indexOf('1.0') > -1, q('#speedBtn').textContent);
+      chunkOk = sent;
+    }
+    if (!patOk && hasPat) {
+      var pat = q('#feedback .pat');
+      rec(c.w, '치환:패널', !!pat, pat ? 'ok' : 'none');
+      if (pat) {
+        var frame = pat.dataset.frame || '';
+        var pchips = doc.querySelectorAll('#feedback .pat .pat-chip');
+        rec(c.w, '치환:틀에 빈칸', frame.indexOf('___') > -1, frame);
+        rec(c.w, '치환:대체 표현 3개', pchips.length === 3, 'chips=' + pchips.length);
+        rec(c.w, '치환:틀 강조', !!q('#feedback .pat .pat-frame u'), 'ok');
+        var slot0 = pchips[0].dataset.slot;
+        var before2 = (c.win.__spoken || []).length;
+        pchips[0].click(); await sleep(140);
+        var ps = (c.win.__spoken || [])[before2] || {};
+        rec(c.w, '치환:칩=완성 문장 발음', ps.text === frame.replace('___', slot0), 'spoken=' + ps.text);
+        q('#feedback .pat [data-act="own"]').click(); await sleep(90);
+        var own = q('#feedback .pat .pat-own');
+        rec(c.w, '치환:내 말 넣기 열림', !!own && !own.hidden, own ? 'hidden=' + own.hidden : 'none');
+        q('#feedback .pat .pat-input').value = 'two coffees';
+        before2 = (c.win.__spoken || []).length;
+        q('#feedback .pat [data-act="ownsay"]').click(); await sleep(160);
+        var os = (c.win.__spoken || [])[before2] || {};
+        rec(c.w, '치환:내 말로 재생', os.text === frame.replace('___', 'two coffees'), 'spoken=' + os.text);
+        boxScan(c, 'feedback-pattern');
+        patOk = sent;
+      }
+    }
   }
+  rec(c.w, '청크:다청크 피드백 확인', !!chunkOk, chunkOk ? chunkOk.slice(0, 40) : '없음');
+  rec(c.w, '치환:패턴 카드 확인', !!patOk, patOk ? patOk.slice(0, 40) : '없음');
   /* 틀이 불확실한 카드는 아무것도 그리지 않는다 */
   rec(c.w, '치환:불확실하면 숨김', qa.pattern('Keep the change.') === null, JSON.stringify(qa.pattern('Keep the change.')));
   await leaveStudy(c);
