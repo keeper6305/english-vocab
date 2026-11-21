@@ -408,17 +408,63 @@
   }
 
   /* 패턴 치환(Lewis의 lexical approach · Speak의 변형 반복): 같은 틀의 [ ] 자리만 바꿔 말한다.
-     문장의 빈칸 표현(c.b)과 같은 상황·같은 형태의 다른 표현을 데이터에서 찾아 제시하고,
-     틀이 확실하지 않으면 아무것도 그리지 않는다 — 엉뚱한 치환 문장을 만들지 않는다. */
+     - 틀은 카드 문장의 빈칸 표현(c.b)에서 뽑고, 앞 단어가 동사·be동사·to일 때만 '쓸 수 있는 틀'로 본다.
+     - 자리에 넣을 표현은 ① 검증된 패턴 사전(자주 쓰는 틀) ② 같은 동사·같은 뒤 문맥으로 쓰인
+       다른 문장의 표현만 쓴다. 둘 다 없으면 칩 없이 '내 말 넣기'만 — 어색한 영어를 만들지 않는다. */
+  var CH_PATTERN_BANK = {
+    'could i get ___?': ['some more water', 'a refill', 'an extra blanket'],
+    'can i get ___?': ['a glass of tap water', 'a bag', 'a tax refund'],
+    "i'd like ___, please.": ['a table for two', 'a window seat', 'a latte'],
+    "i'd like to ___.": ['return these shoes', 'add one thing', 'book a day tour'],
+    'could i have ___?': ['a moment of your time', 'a receipt', 'a glass of water'],
+    'do you have ___?': ['a map of the city', 'a table for two', 'any openings tomorrow'],
+    'how much is ___?': ['a taxi to downtown', 'the fare', 'a day pass'],
+    'what time is ___?': ['the last train', 'checkout', 'the meeting'],
+    'how was ___?': ['your weekend', 'the trip', 'your day'],
+    'i have to ___.': ['cancel our lunch', 'get going', 'finish this today'],
+    'i need to ___.': ['get this off my chest', 'check my schedule', 'refill my prescription'],
+    "let's ___.": ['call it a day', 'grab a coffee', 'get started'],
+    "i'm calling to ___.": ['make an appointment', 'confirm my booking', 'ask about the schedule'],
+    'do i need to ___?': ['take my laptop out', 'take it with food', 'fill this out'],
+    'can i take ___?': ['a rain check', 'a look at the menu', 'a message'],
+    'could we ___?': ['sit outside', 'get the check', 'split the bill'],
+    "where's ___?": ['the nearest subway station', 'the restroom', 'gate 14'],
+    "i've been ___ lately.": ['feeling a bit off', 'really busy', 'trying to eat better'],
+    "i'd like to book ___ for tomorrow.": ['a day tour', 'a table for four', 'a taxi'],
+    'can i get ___, please?': ['a bag', 'a receipt', 'the check'],
+    'could i get ___ for this?': ['a refund', 'a receipt', 'a price check'],
+    'did you see ___?': ['the game last night', 'my message', 'the news'],
+    'what do you do ___?': ['for fun', 'for a living', 'on weekends'],
+    "i've been trying to ___.": ['eat better', 'get more sleep', 'save money'],
+    'sorry, i think we have ___.': ['a bad connection', 'the wrong number', 'a small problem'],
+    "i'm sorry, i have ___.": ['the wrong number', 'a bad connection', 'a quick question'],
+    "i'm afraid the line is ___.": ['breaking up', 'busy', 'not great'],
+    "i'd like to ___ to friday.": ['change my booking', 'move my appointment', 'postpone it'],
+    "i'd like to ___ for tonight.": ['cancel my reservation', 'book a table', 'add one more person'],
+    'could i get ___ on this?': ['a price check', 'a discount', 'your opinion'],
+    'can we meet ___?': ['a bit later', 'at three', 'halfway'],
+    "i'll be ___.": ['a few minutes early', 'there by six', 'a bit late'],
+    "i'd like to ___ by one night.": ['extend my stay', 'push it back', 'move it'],
+    "let's confirm ___.": ['the day before', 'the details', 'the time'],
+    'is it safe to ___?': ['walk there at night', 'drink the tap water', 'leave my bag here'],
+    "let's hear ___ before deciding.": ['both sides', 'the full story', 'what they think'],
+    "i'm still ___.": ['working on it', 'waiting to hear back', 'thinking about it'],
+    "it's ___.": ['nice to finally meet you', 'right around the corner', 'worth a try']
+  };
   var CH_OBJ_VERB = {};
-  ('get have take bring order buy book need want like make send grab pick try keep ask give find leave')
+  ('get have take bring order buy book need want like love try check call send meet start finish open close ' +
+    'turn move change miss catch drop fill wrap hold grab split review confirm hear follow mind keep let make ' +
+    'do know think feel see go come run sit wait work look find give put help show ask tell say speak pay pick ' +
+    'pass write read wear eat drink play stop live stay leave return count')
     .split(' ').forEach(function (w) { CH_OBJ_VERB[w] = 1; });
+  var CH_BE_WORD = { 'am': 1, 'is': 1, 'are': 1, 'was': 1, 'were': 1, 'be': 1, 'been': 1, 'being': 1 };
+  var CH_PREP_TAIL = { 'for': 1, 'of': 1, 'to': 1, 'with': 1, 'on': 1, 'in': 1, 'at': 1, 'from': 1, 'about': 1, 'by': 1 };
+  var CH_PRONOUN_HEAD = { 'her': 1, 'him': 1, 'them': 1, 'me': 1, 'us': 1, 'it': 1 };
 
-  function nounyPhrase(s) {
-    var toks = String(s == null ? '' : s).trim().split(/\s+/).filter(Boolean);
-    if (!toks.length) return false;
-    var h = chunkCore(toks[0]);
-    return !!(CH_DET[h] || /^\d+$/.test(h));
+  function isBeWord(w) {
+    if (!w) return false;
+    if (CH_BE_WORD[w]) return true;
+    return /(^|')(s|re|m)$/.test(w) || w === "it's" || w === "that's" || w === "there's";
   }
 
   function patternDrill(c) {
@@ -426,30 +472,44 @@
     var w = String(c.w), b = String(c.b);
     var at = w.toLowerCase().indexOf(b.toLowerCase());
     if (at < 0) return null;
-    var head = w.slice(0, at).trim();
-    var headWord = head ? chunkCore(head.split(/\s+/).pop()) : '';
-    if (!CH_OBJ_VERB[headWord]) return null;   /* 목적어를 받는 동사 바로 뒤일 때만 */
-    if (!nounyPhrase(b)) return null;          /* 자리에 명사구가 들어갈 때만 */
-    var seen = {};
-    seen[b.toLowerCase()] = 1;
-    var rows = [];
-    (LEVELS[6] || []).forEach(function (x) {
-      if (!x || x === c || x.t !== c.t || !x.b) return;
-      var bs = String(x.b);
-      if (bs.length > 26 || !nounyPhrase(bs)) return;
-      var k = bs.toLowerCase();
-      if (seen[k]) return;
-      seen[k] = 1;
-      rows.push({ b: bs, r: x.r || 999 });
-    });
-    rows.sort(function (a, b2) { return (a.r - b2.r) || (a.b.length - b2.b.length); });
-    rows = rows.slice(0, 3);
-    if (!rows.length) return null;
-    return {
-      frame: w.slice(0, at) + '___' + w.slice(at + b.length),
-      base: b,
-      slots: rows.map(function (x) { return x.b; })
-    };
+    var before = w.slice(0, at), after = w.slice(at + b.length);
+    var frame = before + '___' + after;
+    var bToks = b.trim().split(/\s+/).filter(Boolean);
+    if (bToks.length < 2) return null;                        /* 자리가 한 단어면 치환 연습이 안 된다 */
+    if (frame.trim().split(/\s+/).length < 2) return null;    /* 틀에 맥락이 없으면(문장 전체가 빈칸) 제외 */
+    var headToks = before.trim().split(/\s+/).filter(Boolean);
+    var headWord = headToks.length ? chunkCore(headToks[headToks.length - 1]) : '';
+    if (!(CH_OBJ_VERB[headWord] || isBeWord(headWord) || headWord === 'to')) return null;
+    if (CH_PREP_TAIL[chunkCore(bToks[bToks.length - 1])]) return null;   /* 표현이 전치사로 끝나면 자리로 못 쓴다 */
+    var afterToks = after.trim().split(/\s+/).filter(Boolean);
+    if (afterToks.length && CH_PRONOUN_HEAD[chunkCore(afterToks[0])]) return null;
+
+    /* ① 검증된 틀 사전 → ② 같은 동사·같은 뒤 문맥으로 쓰인 다른 문장의 표현 → ③ 칩 없음 */
+    var bank = CH_PATTERN_BANK[frame.toLowerCase().replace(/\s+/g, ' ').trim()];
+    var slots = bank ? bank.slice(0, 3) : [];
+    if (!slots.length) {
+      var seen = {};
+      seen[b.toLowerCase()] = 1;
+      var rows = [];
+      (LEVELS[6] || []).forEach(function (x) {
+        if (!x || x === c || !x.b || x.t !== c.t) return;
+        var bx = String(x.b);
+        if (bx.length > 26 || bx.toLowerCase() === b.toLowerCase()) return;
+        var ax = String(x.w), xat = ax.toLowerCase().indexOf(bx.toLowerCase());
+        if (xat < 0) return;
+        var xb = ax.slice(0, xat), xa = ax.slice(xat + bx.length);
+        var xh = xb.trim().split(/\s+/).filter(Boolean);
+        var xhw = xh.length ? chunkCore(xh[xh.length - 1]) : '';
+        if (xhw !== headWord || xa.trim().toLowerCase() !== after.trim().toLowerCase()) return;
+        var k = bx.toLowerCase();
+        if (seen[k]) return;
+        seen[k] = 1;
+        rows.push({ b: bx, r: x.r || 999 });
+      });
+      rows.sort(function (a, b2) { return a.r - b2.r; });
+      slots = rows.slice(0, 3).map(function (x) { return x.b; });
+    }
+    return { frame: frame, base: b, slots: slots, ko: c.m || '' };
   }
 
   function patternPanelHtml(c) {
@@ -458,10 +518,10 @@
     return '<div class="pat" data-frame="' + escapeHtml(p.frame) + '">' +
       '<p class="chk-lbl">🔄 패턴 치환 <span>' + escapeHtml(tagOf(c) || '회화') + '</span></p>' +
       '<p class="pat-frame">' + escapeHtml(p.frame).replace('___', '<u>___</u>') + '</p>' +
-      '<div class="pat-chips">' + p.slots.map(function (s, i) {
+      (p.slots.length ? '<div class="pat-chips">' + p.slots.map(function (s, i) {
         return '<button class="pat-chip" data-i="' + i + '" data-slot="' + escapeHtml(s) + '">' +
           escapeHtml(s) + '</button>';
-      }).join('') + '</div>' +
+      }).join('') + '</div>' : '') +
       '<div class="pat-acts">' +
       '<button class="ghost-btn small" data-act="say">🔊 방금 문장</button>' +
       (micSupport() ? '<button class="ghost-btn small" data-act="shadow">🎤 따라 말하기</button>' : '') +
@@ -470,7 +530,9 @@
       '<div class="pat-own" hidden><input class="pat-input" type="text" placeholder="내 말 넣기 (예: two coffees)" ' +
       'enterkeyhint="done" autocomplete="off"><button class="ghost-btn small" data-act="ownsay">🔊 듣기</button></div>' +
       '<p class="pat-note" hidden></p>' +
-      '<p class="pat-hint">칩을 눌러 문장을 듣고, [ ] 자리만 바꿔 입으로 말해 보세요</p></div>';
+      '<p class="pat-hint">' + (p.slots.length
+        ? '칩을 눌러 문장을 듣고, [ ] 자리만 바꿔 입으로 말해 보세요'
+        : '이 틀에 내 말을 넣어 문장을 만들어 보세요') + '</p></div>';
   }
 
   function bindPatternPanel(root, c) {

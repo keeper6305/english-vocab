@@ -1441,19 +1441,28 @@ async function v42PanelTests(c) {
   rec(c.w, '청크:긴 문장 2조각+', d2.length >= 2, d2.join(' | '));
 
   /* 회화 문장 학습 → 피드백 청크·패턴 패널. 두 패널을 다 만족하는 카드가 나올 때까지 넘긴다 */
-  var err = await startConv(c, '카페', 'blank');
+  /* 패턴 사전 검증 — 데이터 문장으로 직접 */
+  var p1 = qa.pattern('Could I get some more water?');
+  rec(c.w, '치환:검증된 틀', !!p1 && p1.frame === 'Could I get ___?' && p1.slots.length === 3,
+    p1 ? p1.frame + ' · ' + p1.slots.join(' / ') : 'none');
+  rec(c.w, '치환:불확실하면 숨김', qa.pattern('Keep the change.') === null, JSON.stringify(qa.pattern('Keep the change.')));
+  var p2 = qa.pattern('I very like this place.');
+  rec(c.w, '치환:Lv.6 아니면 없음', p2 === null, JSON.stringify(p2));
+
+  var err = await startLevel(c, 6, 'blank');
   rec(c.w, '청크:회화 세트 시작', !err && !q('#view-study').hidden, err || 'ok');
   var chunkOk = '', patOk = '';
   for (var t = 0; t < 12 && (!chunkOk || !patOk); t++) {
     if (q('#resultBox') && !q('#resultBox').hidden) {
-      await startConv(c, '카페', 'blank');
+      await startLevel(c, 6, 'blank');
       if (q('#view-study').hidden) break;
     }
     var card = curCard(c);
     if (!card) break;
     var sent = String(card._lv === 6 ? card.w : (card.e || card.w)).replace(/\s+/g, ' ').trim();
     var ch = qa.chunks(sent);
-    var hasPat = !!qa.pattern(card.w);
+    var pat0 = qa.pattern(card.w);
+    var hasPat = !!(pat0 && pat0.slots.length);
     await answerOne(c, true);
     await sleep(40);
     var chips = doc.querySelectorAll('#feedback .chk-chip');
@@ -1519,7 +1528,6 @@ async function v42PanelTests(c) {
   rec(c.w, '청크:다청크 피드백 확인', !!chunkOk, chunkOk ? chunkOk.slice(0, 40) : '없음');
   rec(c.w, '치환:패턴 카드 확인', !!patOk, patOk ? patOk.slice(0, 40) : '없음');
   /* 틀이 불확실한 카드는 아무것도 그리지 않는다 */
-  rec(c.w, '치환:불확실하면 숨김', qa.pattern('Keep the change.') === null, JSON.stringify(qa.pattern('Keep the change.')));
   await leaveStudy(c);
 }
 
