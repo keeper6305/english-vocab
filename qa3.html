@@ -1637,7 +1637,9 @@ async function v43PatternTests(c) {
     withChips.length + '/' + eligible.length);
   rec(c.w, '틀사전:틀 88개 이상', Object.keys(frames).length >= 88, 'frames=' + Object.keys(frames).length);
   var noBank = Object.keys(frames).filter(function (f) { return !bank[f]; });
-  rec(c.w, '틀사전:모든 틀에 사전 있음', noBank.length === 0, noBank.slice(0, 3).join(' / '));
+  rec(c.w, '틀사전:모든 틀에 사전 있음', noBank.length === 0,
+    'frames=' + Object.keys(frames).length + ' · 없음=' + noBank.length +
+    (noBank.length ? ' [' + noBank.slice(0, 3).map(function (f) { return JSON.stringify(f); }).join(',') + ']' : ''));
   /* 사전 × 표현 = 생성 문장 전수 검사(관사 a/an·구두점·중복·길이·빈칸 잔여) */
   var VOW = /^[aeiou]/, HOUR = ['hour', 'hours', 'honest', 'honor', 'honour'];
   var probs = [], n = 0, seen = {};
@@ -1719,33 +1721,34 @@ async function v43RecTests(c) {
     found = true;
     rec(c.w, '녹음:패널 행', !!q('#feedback .chk-rec'), 'ok');
     var rs = qa.recState();
+    rec(c.w, '녹음:처음 상태', rs.box === true && rs.mineHidden === true && rs.cmpHidden === true && rs.note === '',
+      'box=' + rs.box + ' mineHidden=' + rs.mineHidden + ' cmpHidden=' + rs.cmpHidden + ' url=' + rs.url + ' gen=' + rs.gen);
     if (rs.supported) {
       var btn = q('#feedback .chk-rec [data-act="rec"]');
       rec(c.w, '녹음:버튼', !!btn && btn.textContent.indexOf('녹음') > -1, btn ? btn.textContent : 'none');
-      var mine = q('#feedback .chk-rec [data-act="mine"]');
-      var cmp = q('#feedback .chk-rec [data-act="cmp"]');
-      rec(c.w, '녹음:처음엔 숨김', !!mine && !!cmp && mine.hidden && cmp.hidden, '');
       btn.click();
-      await sleep(1100);
+      await sleep(2400);
       var rs2 = qa.recState();
-      var note = q('#feedback .rec-note') ? q('#feedback .rec-note').textContent : '';
-      rec(c.w, '녹음:장치/권한 안내', rs2.hasUrl === false && rs2.state === 'idle' && /마이크|녹음|권한|찾지/.test(note),
-        'state=' + rs2.state + ' · ' + note.slice(0, 46));
-      rec(c.w, '녹음:실패해도 안 깨짐', !q('#feedback').hidden && !!q('#feedback .chk-chip'), '');
+      rec(c.w, '녹음:장치/권한 안내', rs2.hasUrl === false && rs2.state === 'idle' && /마이크|녹음|권한|찾지|허용/.test(rs2.note),
+        'state=' + rs2.state + ' · note=' + rs2.note.slice(0, 40));
+      rec(c.w, '녹음:안내 화면 표시', /마이크|녹음|권한|찾지|허용/.test(rs2.noteText) && rs2.noteHidden === false,
+        'noteHidden=' + rs2.noteHidden + ' · ' + rs2.noteText.slice(0, 30));
+      rec(c.w, '녹음:실패해도 안 깨짐', !q('#feedback').hidden && rs2.chips > 0, 'chips=' + rs2.chips);
     } else {
       rec(c.w, '녹음:미지원 안내', /지원하지 않아요/.test(q('#feedback .chk-rec').textContent), q('#feedback .chk-rec').textContent.slice(0, 40));
     }
-    /* localStorage 에 오디오 흔적이 없어야 한다 */
+    /* 저장소에 오디오 흔적이 없어야 한다 — 앱 상태에 rec/audio 필드가 생기지 않는지 */
+    var st = qa.state().store;
     var dump = '';
-    try { dump = JSON.stringify(c.win.localStorage); } catch (e) { dump = ''; }
-    rec(c.w, '녹음:저장 안 함', dump.indexOf('blob:') < 0 && dump.indexOf('audio/') < 0 && dump.indexOf('MediaRecorder') < 0,
-      'len=' + dump.length);
+    try { dump = JSON.stringify(st); } catch (e) { dump = ''; }
+    rec(c.w, '녹음:저장 안 함', dump.indexOf('blob:') < 0 && dump.indexOf('audio/') < 0 &&
+      dump.indexOf('MediaRecorder') < 0 && !('rec' in st) && !('audio' in st), 'storeLen=' + dump.length);
     /* 다음 카드로 넘어가면 녹음 상태 초기화 */
     q('#fbNext').click();
-    await sleep(140);
+    await sleep(160);
     var rs3 = qa.recState();
     rec(c.w, '녹음:다음 카드 초기화', rs3.hasUrl === false && rs3.state === 'idle' && rs3.note === '',
-      'state=' + rs3.state + ' note=' + rs3.note);
+      'state=' + rs3.state + ' note=' + rs3.note + ' gen=' + rs3.gen + ' box=' + rs3.box);
   }
   rec(c.w, '녹음:패널 확인', found, found ? 'ok' : '없음');
   await leaveStudy(c);

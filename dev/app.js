@@ -361,9 +361,10 @@
     flush();
     var merged = [];
     out.forEach(function (c) {
-      var prev = merged[merged.length - 1];
-      if (prev && c.split(' ').length === 1 && !CH_TAIL[chunkCore(c)] && prev.split(' ').length < 6) prev += ' ' + c;
-      else merged.push(c);
+      var last = merged.length - 1;
+      if (last >= 0 && c.split(' ').length === 1 && !CH_TAIL[chunkCore(c)] && merged[last].split(' ').length < 6) {
+        merged[last] += ' ' + c;
+      } else merged.push(c);
     });
     return merged;
   }
@@ -541,7 +542,7 @@
           '<button class="ghost-btn small" data-act="cmp"' + (REC.url ? '' : ' hidden') + '>↔ 원어민과 비교</button>' +
           '<audio class="rec-audio" preload="metadata"' + (REC.url ? ' src="' + escapeHtml(REC.url) + '"' : '') + ' hidden></audio>'
         : '<span class="rec-note rec-off">이 브라우저는 녹음을 지원하지 않아요 — 🔊로 원어민 발음을 들어 보세요</span>') +
-      (REC.note ? '<span class="rec-note">' + escapeHtml(REC.note) + '</span>' : '') +
+      '<span class="rec-note"' + (REC.note ? '' : ' hidden') + '>' + escapeHtml(REC.note || '') + '</span>' +
       '</div></div>';
   }
 
@@ -4483,9 +4484,15 @@
       },
       chunkProtect: function (w) { var c = cardByW(w); return c ? chunkProtect(c) : ''; },
       recState: function () {
+        var box = $('#feedback .chk-rec');
+        function h(sel) { var el = box ? box.querySelector(sel) : null; return el ? el.hidden : null; }
         return {
-          supported: recSupport(), state: REC.state, hasUrl: !!REC.url, note: REC.note || '',
-          btn: $('#feedback .rec-btn') ? $('#feedback .rec-btn').textContent : ''
+          supported: recSupport(), state: REC.state, hasUrl: !!REC.url, url: REC.url ? 1 : 0,
+          note: REC.note || '', box: !!box, gen: REC.gen,
+          btn: box && box.querySelector('[data-act="rec"]') ? box.querySelector('[data-act="rec"]').textContent : '',
+          mineHidden: h('[data-act="mine"]'), cmpHidden: h('[data-act="cmp"]'),
+          noteText: box && box.querySelector('.rec-note') ? box.querySelector('.rec-note').textContent : '',
+          noteHidden: h('.rec-note'), chips: $('#feedback .chk-chip') ? $$('#feedback .chk-chip').length : 0
         };
       },
       recReset: recReset,
