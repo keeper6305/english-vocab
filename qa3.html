@@ -1752,7 +1752,7 @@ async function v43RecTests(c) {
     await sleep(160);
     var rs3 = qa.recState();
     rec(c.w, '녹음:다음 카드 초기화', rs3.hasUrl === false && rs3.state === 'idle' && rs3.note === '',
-      'state=' + rs3.state + ' note=' + rs3.note + ' gen=' + rs3.gen + ' box=' + rs3.box);
+      'state=' + rs3.state + ' note=' + rs3.note.slice(0, 20) + ' gen=' + rs3.gen + ' box=' + rs3.box + ' trace=' + rs3.trace);
   }
   rec(c.w, '녹음:패널 확인', found, found ? 'ok' : '없음');
   await leaveStudy(c);

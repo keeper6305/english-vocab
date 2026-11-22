@@ -374,7 +374,15 @@
   /* ---------------- 내 발음 녹음 → 원어민과 비교(ELSA·Speak식 쉐도잉) ----------------
      녹음 Blob 은 메모리에만 둔다 — localStorage·IndexedDB·서버 어디에도 쓰지 않고,
      패널이 바뀌면 URL 까지 폐기한다. 권한이 거부되거나 미지원이면 안내만 남기고 깨지지 않는다. */
-  var REC = { state: 'idle', mr: null, stream: null, chunks: [], url: '', box: null, timer: 0, started: 0, note: '', gen: 0 };
+  var REC = { state: 'idle', mr: null, stream: null, chunks: [], url: '', box: null, timer: 0, started: 0, note: '', gen: 0, trace: [] };
+  function recTrace(what, gen) {
+    REC.trace.push(what + ':' + gen + '/' + REC.gen);
+    if (REC.trace.length > 12) REC.trace.shift();
+  }
+  /* 늦게 도착한 마이크 응답이 이미 사라진 패널에 글자를 남기지 않게 — 패널이 문서에 있는지도 본다 */
+  function recAlive(box, gen) {
+    return gen === REC.gen && !!box && document.body.contains(box);
+  }
 
   function recSupport() {
     return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -388,6 +396,7 @@
   /* 패널을 다시 그리거나 화면을 떠날 때 — 녹음 중이면 멈추고 Blob URL 을 버린다 */
   function recReset() {
     REC.gen++;                 /* 진행 중이던 녹음의 onstop 결과는 버린다 */
+    recTrace('reset');
     clearTimeout(REC.timer);
     REC.timer = 0;
     try { if (REC.mr && REC.mr.state !== 'inactive') REC.mr.stop(); } catch (e) {}
@@ -437,8 +446,9 @@
     REC.note = '마이크를 허용해 주세요…';
     recPaint(box);
     var gen = ++REC.gen;
+    recTrace('start');
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      if (gen !== REC.gen) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
+      if (!recAlive(box, gen)) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
       REC.stream = stream;
       REC.chunks = [];
       var mr = null;
@@ -451,7 +461,7 @@
       REC.mr = mr;
       mr.ondataavailable = function (e) { if (e.data && e.data.size) REC.chunks.push(e.data); };
       mr.onstop = function () {
-        if (gen !== REC.gen) return;   /* 패널이 바뀌었거나 초기화됐다 — 이 녹음은 버린다 */
+        if (!recAlive(box, gen)) return;   /* 패널이 바뀌었거나 초기화됐다 — 이 녹음은 버린다 */
         clearTimeout(REC.timer);
         REC.timer = 0;
         recStopTracks();
@@ -483,7 +493,8 @@
       /* 짧은 녹음 — 8초에 자동 종료 */
       REC.timer = setTimeout(function () { try { if (mr.state !== 'inactive') mr.stop(); } catch (e) {} }, 8000);
     }).catch(function (err) {
-      if (gen !== REC.gen) return;
+      recTrace('err');
+      if (!recAlive(box, gen)) return;
       REC.state = 'idle';
       recStopTracks();
       var name = err && err.name;
@@ -4487,7 +4498,7 @@
         function h(sel) { var el = box ? box.querySelector(sel) : null; return el ? el.hidden : null; }
         return {
           supported: recSupport(), state: REC.state, hasUrl: !!REC.url, url: REC.url ? 1 : 0,
-          note: REC.note || '', box: !!box, gen: REC.gen,
+          note: REC.note || '', box: !!box, gen: REC.gen, trace: REC.trace.join(' '),
           btn: box && box.querySelector('[data-act="rec"]') ? box.querySelector('[data-act="rec"]').textContent : '',
           mineHidden: h('[data-act="mine"]'), cmpHidden: h('[data-act="cmp"]'),
           noteText: box && box.querySelector('.rec-note') ? box.querySelector('.rec-note').textContent : '',
