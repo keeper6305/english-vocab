@@ -1572,6 +1572,7 @@
   function nextCard() {
     if (!S) return;
     if (S.i >= S.queue.length) { endSession(); return; }
+    recReset();   /* 카드가 넘어가면 앞 카드에서 만든 녹음·안내는 즉시 버린다 */
     var item = S.queue[S.i];
     current = item.c;
     if (S.combo == null) S.combo = 0;

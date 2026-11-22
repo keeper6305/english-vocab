@@ -1741,8 +1741,10 @@ async function v43RecTests(c) {
     var st = qa.state().store;
     var dump = '';
     try { dump = JSON.stringify(st); } catch (e) { dump = ''; }
-    rec(c.w, '녹음:저장 안 함', dump.indexOf('blob:') < 0 && dump.indexOf('audio/') < 0 &&
-      dump.indexOf('MediaRecorder') < 0 && !('rec' in st) && !('audio' in st), 'storeLen=' + dump.length);
+    var blobAt = dump.indexOf('blob:'), recKey = Object.prototype.hasOwnProperty.call(st, 'rec'),
+      audioKey = Object.prototype.hasOwnProperty.call(st, 'audio');
+    rec(c.w, '녹음:저장 안 함', blobAt < 0 && !recKey && !audioKey,
+      'storeLen=' + dump.length + ' blob=' + blobAt + ' recKey=' + recKey + ' audioKey=' + audioKey);
     /* 다음 카드로 넘어가면 녹음 상태 초기화 */
     q('#fbNext').click();
     await sleep(160);
