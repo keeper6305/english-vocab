@@ -608,9 +608,9 @@
      - 틀은 카드 문장의 빈칸 표현(c.b)에서 뽑고, 앞 단어가 동사·be동사·to일 때만 '쓸 수 있는 틀'로 본다.
      - 자리에 넣을 표현은 ① 검증된 패턴 사전(자주 쓰는 틀) ② 같은 동사·같은 뒤 문맥으로 쓰인
        다른 문장의 표현만 쓴다. 둘 다 없으면 칩 없이 '내 말 넣기'만 — 어색한 영어를 만들지 않는다.
-     - v4.3: 틀 사전 38 → 88개(게이트 통과 116문장의 틀 전부). 틀×표현 270문장 검사·육안 검수. */
+     - v4.3: 틀 사전 38 → 88개(게이트 통과 116문장의 틀 전부, 틀×표현 264문장 검사·육안 검수). */
   /* 검증된 패턴 틀 사전 — 회화 통문장 412개 중 안전 게이트를 통과한 116문장의 틀 88개를 모두 덮는다.
-     모든 틀×표현 270문장을 스크립트로 검사(관사 a/an·구두점·중복·길이)하고 육안 검수했다.
+     모든 틀×표현 264문장을 스크립트로 검사(관사 a/an·구두점·중복·길이)하고 육안 검수했다.
      틀에 없는 카드는 아래 patternDrill 이 같은 동사·같은 뒤 문맥으로만 채우거나 칩을 숨긴다. */
   var CH_PATTERN_BANK = {
     "could i get ___?": ["some more water", "a refill", "an extra blanket"],
@@ -700,9 +700,7 @@
     "we'll have to ___.": ["agree to disagree", "see how it goes", "wait and see"],
     "i think ___.": ["I'm lost", "we took a wrong turn", "this is the wrong stop"],
     "it's been ___.": ["getting worse", "a long week", "like that all day"],
-    "you're ___.": ["on mute", "breaking up", "cutting out"],
-    "could we ___?": ["sit outside", "get the check", "split the bill"],
-    "i'm still ___.": ["working on it", "waiting to hear back", "thinking about it"]
+    "you're ___.": ["on mute", "breaking up", "cutting out"]
   };
   var CH_OBJ_VERB = {};
   ('get have take bring order buy book need want like love try check call send meet start finish open close ' +
