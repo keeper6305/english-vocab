@@ -273,6 +273,15 @@
   }
 
   /* 예문(Example sentence) 전용 — 카드·퀴즈·해설·단어장 어디서든 같은 버튼을 쓴다 */
+  /* 청크가 자르면 안 되는 핵심 표현 — 회화 문장 카드의 빈칸 표현(b) */
+  function chunkProtect(c, text) {
+    if (!c || c._lv !== 6 || !c.b) return '';
+    var b = String(c.b).replace(/\s+/g, ' ').trim();
+    if (!b) return '';
+    if (text && String(text).toLowerCase().indexOf(b.toLowerCase()) < 0) return '';
+    return b;
+  }
+
   function exampleOf(c) {
     if (!c) return '';
     return c._lv === 6 ? (c.w || '') : (c.e || c.w || '');
@@ -312,26 +321,48 @@
     return String(t == null ? '' : t).replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '').toLowerCase();
   }
 
-  /* 문장 → 청크 배열. 한 단어만 남은 조각은 앞 청크에 붙이고, 감탄사·대답은 그대로 둔다 */
-  function chunksOf(text) {
+  /* 문장 → 청크 배열. 한 단어만 남은 조각은 앞 청크에 붙이고, 감탄사·대답은 그대로 둔다.
+     protect(카드의 핵심 빈칸 표현 b)가 주어지면 그 구간은 절대 중간을 자르지 않는다 —
+     카드에서 가린 표현이 두 청크로 갈리면 따라 말하기의 의미 단위가 무너지기 때문.
+     대신 b의 첫 단어 앞에서 끊어 그 표현이 청크 선두에 오게 하고, 청크는 5~6단어를 넘기지 않는다
+     (6단어짜리 표현 앞에 한 단어가 붙는 드문 경우만 7단어). */
+  function chunksOf(text, protect) {
     var toks = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
     if (toks.length < 2) return toks.length ? [toks[0]] : [];
+    /* 보호 구간 찾기 — 대소문자·구두점을 벗긴 낱말로 비교 */
+    var p0 = -1, p1 = -1;
+    if (protect) {
+      var pt = String(protect).replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean);
+      if (pt.length > 1) {
+        for (var i = 0; i + pt.length <= toks.length && p0 < 0; i++) {
+          var same = true;
+          for (var j = 0; j < pt.length; j++) if (chunkCore(toks[i + j]) !== chunkCore(pt[j])) { same = false; break; }
+          if (same) { p0 = i; p1 = i + pt.length; }
+        }
+      }
+    }
     var out = [], cur = [];
     function flush() { if (cur.length) { out.push(cur.join(' ')); cur = []; } }
-    toks.forEach(function (t) {
+    toks.forEach(function (t, idx) {
       var w = chunkCore(t), L = cur.length;
+      var inB = p0 >= 0 && idx > p0 && idx < p1;      /* 핵심 표현 '안'에서 시작 */
+      var atB = p0 >= 0 && idx === p0;                /* 핵심 표현 '첫 단어' */
       if (L) {
-        var brk = (CH_CONJ[w] && L >= 2) || (CH_PREP[w] && L >= 2) || (CH_DET[w] && L >= 2) || L >= 5;
+        var brk;
+        if (inB) brk = false;                         /* 핵심 표현은 어떤 경우에도 가르지 않는다 */
+        else if (atB) brk = L >= 2;                   /* 표현 앞에서 끊어 청크 선두로 (한 단어만 남기지 않게) */
+        else brk = (CH_CONJ[w] && L >= 2) || (CH_PREP[w] && L >= 2) || (CH_DET[w] && L >= 2) || L >= 5;
         if (brk) flush();
       }
       cur.push(t);
-      /* 마침표는 약어(Mr.)와 구분해 실제 문장 끝에서만 끊는다 */
-      if (/[,;:.!?]$/.test(t) && chunkCore(t).length > 1) flush();
+      /* 마침표는 약어(Mr.)와 구분해 실제 문장 끝에서만 끊는다 — 핵심 표현 안의 쉼표도 자르지 않는다 */
+      if (/[,;:.!?]$/.test(t) && chunkCore(t).length > 1 && !(p0 >= 0 && idx >= p0 && idx < p1 - 1)) flush();
     });
     flush();
     var merged = [];
     out.forEach(function (c) {
-      if (merged.length && c.split(' ').length === 1 && !CH_TAIL[chunkCore(c)]) merged[merged.length - 1] += ' ' + c;
+      var prev = merged[merged.length - 1];
+      if (prev && c.split(' ').length === 1 && !CH_TAIL[chunkCore(c)] && prev.split(' ').length < 6) prev += ' ' + c;
       else merged.push(c);
     });
     return merged;
@@ -339,9 +370,156 @@
 
   var CH_SPEAK = { token: 0 };
 
-  /* 청크 패널 — 끊어 보여 주고, 청크를 누르면 그 조각만, ▶는 한 청크씩 이어서 */
-  function chunkPanelHtml(text) {
-    var ch = chunksOf(text);
+  /* ---------------- 내 발음 녹음 → 원어민과 비교(ELSA·Speak식 쉐도잉) ----------------
+     녹음 Blob 은 메모리에만 둔다 — localStorage·IndexedDB·서버 어디에도 쓰지 않고,
+     패널이 바뀌면 URL 까지 폐기한다. 권한이 거부되거나 미지원이면 안내만 남기고 깨지지 않는다. */
+  var REC = { state: 'idle', mr: null, stream: null, chunks: [], url: '', box: null, timer: 0, started: 0, note: '', gen: 0 };
+
+  function recSupport() {
+    return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
+
+  function recStopTracks() {
+    if (REC.stream) { try { REC.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+    REC.stream = null;
+  }
+
+  /* 패널을 다시 그리거나 화면을 떠날 때 — 녹음 중이면 멈추고 Blob URL 을 버린다 */
+  function recReset() {
+    REC.gen++;                 /* 진행 중이던 녹음의 onstop 결과는 버린다 */
+    clearTimeout(REC.timer);
+    REC.timer = 0;
+    try { if (REC.mr && REC.mr.state !== 'inactive') REC.mr.stop(); } catch (e) {}
+    REC.mr = null;
+    recStopTracks();
+    REC.chunks = [];
+    if (REC.url) { try { URL.revokeObjectURL(REC.url); } catch (e) {} REC.url = ''; }
+    REC.state = 'idle';
+    REC.box = null;
+    REC.note = '';
+    REC.started = 0;
+  }
+
+  function recNoteText() { return REC.note; }
+
+  function recPaint(box) {
+    box = box || REC.box;
+    if (!box) return;
+    var rec = box.querySelector('[data-act="rec"]');
+    var mine = box.querySelector('[data-act="mine"]');
+    var cmp = box.querySelector('[data-act="cmp"]');
+    var note = box.querySelector('.rec-note');
+    var audio = box.querySelector('.rec-audio');
+    var has = !!REC.url;
+    if (rec) {
+      rec.textContent = REC.state === 'rec' ? '⏹ 멈추기' : (has ? '🎙 다시 녹음' : '🎙 내 발음 녹음');
+      rec.classList.toggle('rec-on', REC.state === 'rec');
+    }
+    if (mine) mine.hidden = !has;
+    if (cmp) cmp.hidden = !has;
+    if (audio && has && audio.getAttribute('src') !== REC.url) audio.setAttribute('src', REC.url);
+    if (note) {
+      note.hidden = !REC.note;
+      note.textContent = REC.note || '';
+    }
+  }
+
+  function recStart(box) {
+    if (!recSupport()) { toast('이 브라우저는 녹음을 지원하지 않아요'); return; }
+    if (REC.state === 'rec') {
+      try { REC.mr && REC.mr.stop(); } catch (e) {}
+      return;
+    }
+    /* 새 녹음은 이전 Blob 을 버리고 시작한다 */
+    if (REC.url) { try { URL.revokeObjectURL(REC.url); } catch (e) {} REC.url = ''; }
+    REC.box = box;
+    REC.note = '마이크를 허용해 주세요…';
+    recPaint(box);
+    var gen = ++REC.gen;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      if (gen !== REC.gen) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
+      REC.stream = stream;
+      REC.chunks = [];
+      var mr = null;
+      try { mr = new MediaRecorder(stream); } catch (e) {
+        recStopTracks();
+        REC.note = '이 기기에서는 녹음을 만들 수 없어요';
+        recPaint(box);
+        return;
+      }
+      REC.mr = mr;
+      mr.ondataavailable = function (e) { if (e.data && e.data.size) REC.chunks.push(e.data); };
+      mr.onstop = function () {
+        if (gen !== REC.gen) return;   /* 패널이 바뀌었거나 초기화됐다 — 이 녹음은 버린다 */
+        clearTimeout(REC.timer);
+        REC.timer = 0;
+        recStopTracks();
+        var blob = null;
+        try { blob = new Blob(REC.chunks, { type: (mr && mr.mimeType) || 'audio/webm' }); } catch (e) { blob = null; }
+        REC.chunks = [];
+        REC.state = 'idle';
+        if (!blob || blob.size < 400) {
+          REC.note = '소리가 거의 담기지 않았어요 — 마이크에 조금 더 가까이 대고 다시';
+          recPaint(box);
+          return;
+        }
+        try { REC.url = URL.createObjectURL(blob); } catch (e) { REC.url = ''; }
+        var secs = Math.max(1, Math.round((Date.now() - REC.started) / 1000));
+        REC.note = secs + '초 녹음 · 이 화면에서만 들리고 저장되지 않아요';
+        recPaint(box);
+        toast('녹음 완료 — ▶ 내 발음으로 들어 보세요');
+      };
+      REC.started = Date.now();
+      REC.state = 'rec';
+      try { mr.start(); } catch (e) {
+        REC.state = 'idle';
+        REC.note = '녹음을 시작하지 못했어요';
+        recPaint(box);
+        return;
+      }
+      REC.note = '녹음 중… (최대 8초) 같은 문장을 한 번에 말해 보세요';
+      recPaint(box);
+      /* 짧은 녹음 — 8초에 자동 종료 */
+      REC.timer = setTimeout(function () { try { if (mr.state !== 'inactive') mr.stop(); } catch (e) {} }, 8000);
+    }).catch(function (err) {
+      if (gen !== REC.gen) return;
+      REC.state = 'idle';
+      recStopTracks();
+      var name = err && err.name;
+      REC.note = name === 'NotAllowedError' || name === 'SecurityError'
+        ? '마이크 권한이 거부됐어요 — 주소창의 자물쇠에서 마이크를 허용한 뒤 다시 눌러 주세요'
+        : name === 'NotFoundError' ? '이 기기에서 마이크를 찾지 못했어요' : '마이크를 열 수 없어요 — 원어민 발음만 들어 보세요';
+      recPaint(box);
+      toast(REC.note);
+    });
+  }
+
+  function recPlay(box) {
+    var audio = box && box.querySelector('.rec-audio');
+    if (!audio || !REC.url) return;
+    try { audio.currentTime = 0; var p = audio.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+  }
+
+  /* 원어민 TTS → 잠깐 쉬고 →내 녹음. 같은 문장을 번갈아 들어 차이를 잡는다 */
+  function recCompare(box, text) {
+    if (!REC.url) return;
+    if (!speakOk) { recPlay(box); return; }
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = speedRate();
+    var v = pickVoice();
+    if (v) u.voice = v;
+    var next = function () { setTimeout(function () { recPlay(box); }, 360); };
+    u.onend = next;
+    u.onerror = next;
+    try { window.speechSynthesis.speak(u); } catch (e) { recPlay(box); }
+  }
+
+  /* 청크 패널 — 끊어 보여 주고, 청크를 누르면 그 조각만, ▶는 한 청크씩 이어서.
+     protect(카드의 핵심 표현 b)를 넘기면 그 표현은 잘리지 않고 청크 선두에 온다. */
+  function chunkPanelHtml(text, protect) {
+    var ch = chunksOf(text, protect);
     if (ch.length < 2) return '';
     return '<div class="chk">' +
       '<p class="chk-lbl">끊어 읽기 <span>' + ch.length + '청크</span></p>' +
@@ -354,7 +532,17 @@
       '<span class="chk-speed" role="group" aria-label="듣기 속도">' +
       '<button class="chk-sp' + (speedRate() === 1 ? ' active' : '') + '" data-rate="1">🔊 1.0x</button>' +
       '<button class="chk-sp' + (speedRate() === 0.75 ? ' active' : '') + '" data-rate="0.75">🐢 0.75x</button>' +
-      '</span></div></div>';
+      '</span></div>' +
+      '<div class="chk-rec">' +
+      (recSupport()
+        ? '<button class="ghost-btn small rec-btn' + (REC.state === 'rec' ? ' rec-on' : '') + '" data-act="rec">' +
+          (REC.state === 'rec' ? '⏹ 멈추기' : (REC.url ? '🎙 다시 녹음' : '🎙 내 발음 녹음')) + '</button>' +
+          '<button class="ghost-btn small" data-act="mine"' + (REC.url ? '' : ' hidden') + '>▶ 내 발음</button>' +
+          '<button class="ghost-btn small" data-act="cmp"' + (REC.url ? '' : ' hidden') + '>↔ 원어민과 비교</button>' +
+          '<audio class="rec-audio" preload="metadata"' + (REC.url ? ' src="' + escapeHtml(REC.url) + '"' : '') + ' hidden></audio>'
+        : '<span class="rec-note rec-off">이 브라우저는 녹음을 지원하지 않아요 — 🔊로 원어민 발음을 들어 보세요</span>') +
+      (REC.note ? '<span class="rec-note">' + escapeHtml(REC.note) + '</span>' : '') +
+      '</div></div>';
   }
 
   function speakChunks(list, chips) {
@@ -381,10 +569,10 @@
     })();
   }
 
-  function bindChunkPanel(root, text) {
+  function bindChunkPanel(root, text, protect) {
     var box = root ? root.querySelector('.chk') : null;
     if (!box) return;
-    var ch = chunksOf(text);
+    var ch = chunksOf(text, protect);
     var chips = $$('.chk-chip', box);
     chips.forEach(function (b) {
       b.addEventListener('click', function () {
@@ -396,6 +584,14 @@
     if (seq) seq.addEventListener('click', function () { speakChunks(ch, chips); });
     var all = box.querySelector('[data-act="all"]');
     if (all) all.addEventListener('click', function () { speak(text); });
+    /* 녹음 — 이 패널을 가리키는 대상 문장을 그대로 따라 한다 */
+    var rec = box.querySelector('[data-act="rec"]');
+    if (rec) rec.addEventListener('click', function () { recStart(box); });
+    var mine = box.querySelector('[data-act="mine"]');
+    if (mine) mine.addEventListener('click', function () { recPlay(box); });
+    var cmp = box.querySelector('[data-act="cmp"]');
+    if (cmp) cmp.addEventListener('click', function () { recCompare(box, text); });
+    if (REC.box === box) recPaint(box);
     $$('.chk-sp', box).forEach(function (b) {
       b.addEventListener('click', function () {
         store.settings.speed = Number(b.dataset.rate) === 0.75 ? 0.75 : 1;
@@ -410,46 +606,102 @@
   /* 패턴 치환(Lewis의 lexical approach · Speak의 변형 반복): 같은 틀의 [ ] 자리만 바꿔 말한다.
      - 틀은 카드 문장의 빈칸 표현(c.b)에서 뽑고, 앞 단어가 동사·be동사·to일 때만 '쓸 수 있는 틀'로 본다.
      - 자리에 넣을 표현은 ① 검증된 패턴 사전(자주 쓰는 틀) ② 같은 동사·같은 뒤 문맥으로 쓰인
-       다른 문장의 표현만 쓴다. 둘 다 없으면 칩 없이 '내 말 넣기'만 — 어색한 영어를 만들지 않는다. */
+       다른 문장의 표현만 쓴다. 둘 다 없으면 칩 없이 '내 말 넣기'만 — 어색한 영어를 만들지 않는다.
+     - v4.3: 틀 사전 38 → 88개(게이트 통과 116문장의 틀 전부). 틀×표현 270문장 검사·육안 검수. */
+  /* 검증된 패턴 틀 사전 — 회화 통문장 412개 중 안전 게이트를 통과한 116문장의 틀 88개를 모두 덮는다.
+     모든 틀×표현 270문장을 스크립트로 검사(관사 a/an·구두점·중복·길이)하고 육안 검수했다.
+     틀에 없는 카드는 아래 patternDrill 이 같은 동사·같은 뒤 문맥으로만 채우거나 칩을 숨긴다. */
   var CH_PATTERN_BANK = {
-    'could i get ___?': ['some more water', 'a refill', 'an extra blanket'],
-    'can i get ___?': ['a glass of tap water', 'a bag', 'a tax refund'],
-    "i'd like ___, please.": ['a table for two', 'a window seat', 'a latte'],
-    "i'd like to ___.": ['return these shoes', 'add one thing', 'book a day tour'],
-    'could i have ___?': ['a moment of your time', 'a receipt', 'a glass of water'],
-    'do you have ___?': ['a map of the city', 'a table for two', 'any openings tomorrow'],
-    'how much is ___?': ['a taxi to downtown', 'the fare', 'a day pass'],
-    'what time is ___?': ['the last train', 'checkout', 'the meeting'],
-    'how was ___?': ['your weekend', 'the trip', 'your day'],
-    'i have to ___.': ['cancel our lunch', 'get going', 'finish this today'],
-    'i need to ___.': ['get this off my chest', 'check my schedule', 'refill my prescription'],
-    "let's ___.": ['call it a day', 'grab a coffee', 'get started'],
-    "i'm calling to ___.": ['make an appointment', 'confirm my booking', 'ask about the schedule'],
-    'do i need to ___?': ['take my laptop out', 'take it with food', 'fill this out'],
-    'can i take ___?': ['a rain check', 'a look at the menu', 'a message'],
-    'could we ___?': ['sit outside', 'get the check', 'split the bill'],
-    "where's ___?": ['the nearest subway station', 'the restroom', 'gate 14'],
-    "i've been ___ lately.": ['feeling a bit off', 'really busy', 'trying to eat better'],
-    "i'd like to book ___ for tomorrow.": ['a day tour', 'a table for four', 'a taxi'],
-    'can i get ___, please?': ['a bag', 'a receipt', 'the check'],
-    'could i get ___ for this?': ['a refund', 'a receipt', 'a price check'],
-    'did you see ___?': ['the game last night', 'my message', 'the news'],
-    'what do you do ___?': ['for fun', 'for a living', 'on weekends'],
-    "i've been trying to ___.": ['eat better', 'get more sleep', 'save money'],
-    'sorry, i think we have ___.': ['a bad connection', 'the wrong number', 'a small problem'],
-    "i'm sorry, i have ___.": ['the wrong number', 'a bad connection', 'a quick question'],
-    "i'm afraid the line is ___.": ['breaking up', 'busy', 'not great'],
-    "i'd like to ___ to friday.": ['change my booking', 'move my appointment', 'postpone it'],
-    "i'd like to ___ for tonight.": ['cancel my reservation', 'book a table', 'add one more person'],
-    'could i get ___ on this?': ['a price check', 'a discount', 'your opinion'],
-    'can we meet ___?': ['a bit later', 'at three', 'halfway'],
-    "i'll be ___.": ['a few minutes early', 'there by six', 'a bit late'],
-    "i'd like to ___ by one night.": ['extend my stay', 'push it back', 'move it'],
-    "let's confirm ___.": ['the day before', 'the details', 'the time'],
-    'is it safe to ___?': ['walk there at night', 'drink the tap water', 'leave my bag here'],
-    "let's hear ___ before deciding.": ['both sides', 'the full story', 'what they think'],
-    "i'm still ___.": ['working on it', 'waiting to hear back', 'thinking about it'],
-    "it's ___.": ['nice to finally meet you', 'right around the corner', 'worth a try']
+    "could i get ___?": ["some more water", "a refill", "an extra blanket"],
+    "i'd like ___, please.": ["a table for two", "a window seat", "a latte"],
+    "actually, i think there's been ___ with my order.": ["a mix-up", "a mistake", "a delay"],
+    "can i get ___?": ["a glass of tap water", "a bag", "a tax refund"],
+    "did you see ___?": ["the game last night", "my message", "the news"],
+    "that's ___, thanks.": ["a great idea", "very kind", "all I need"],
+    "do you mind if i ask ___?": ["what you do", "how you heard about us", "where you're from"],
+    "i've been trying to ___.": ["eat better", "get more sleep", "save money"],
+    "let's ___ soon.": ["catch up", "grab lunch", "get together"],
+    "it's ___.": ["nice to finally meet you", "right around the corner", "worth a try"],
+    "what do you do ___?": ["for fun", "for a living", "on weekends"],
+    "let's ___ sometime.": ["grab a coffee", "do this again", "catch a movie"],
+    "i'm ___ for the call.": ["running a bit late", "ready", "a bit early"],
+    "let's ___ after lunch.": ["circle back", "talk it through", "pick this up"],
+    "let's ___ tomorrow morning.": ["touch base", "run through the numbers", "make a decision"],
+    "how was ___?": ["your weekend", "the trip", "your day"],
+    "i'm sorry, he's ___ right now.": ["in a meeting", "on another call", "out of the office"],
+    "sorry, i think we have ___.": ["a bad connection", "the wrong number", "a small problem"],
+    "i'm sorry, i have ___.": ["the wrong number", "a bad connection", "a quick question"],
+    "i'm afraid the line is ___.": ["breaking up", "a bit unclear", "cutting out"],
+    "i'd like to ___ to friday.": ["change my booking", "move my appointment", "postpone it"],
+    "i'm ___, thanks.": ["just looking", "all set", "good for now"],
+    "i'm calling to ___.": ["make an appointment", "confirm my booking", "ask about the schedule"],
+    "can i get ___, please?": ["a bag", "a receipt", "the check"],
+    "i'd like to ___ for tonight.": ["cancel my reservation", "book a table", "add one more person"],
+    "could i get ___ on this?": ["a price check", "a discount", "your opinion"],
+    "it's ___ around the shoulders.": ["too tight", "a bit loose", "really snug"],
+    "i'd like to ___.": ["return these shoes", "add one thing", "book a day tour"],
+    "is ___?": ["the tip included", "this seat taken", "tax included"],
+    "let's ___ two hours for this.": ["block out", "set aside", "reserve"],
+    "can we meet ___?": ["a bit later", "at three", "halfway"],
+    "i'll be ___.": ["a few minutes early", "there by six", "a bit late"],
+    "let's ___ for next month.": ["set a reminder", "plan something", "find a date"],
+    "let's ___ seven instead.": ["make it", "do", "say"],
+    "i'd like to ___ by one night.": ["extend my stay", "push it back", "move it"],
+    "do i need to ___?": ["take my laptop out", "take it with food", "fill this out"],
+    "i'd like to book ___ for tomorrow.": ["a day tour", "a table for four", "a taxi"],
+    "we're ___ that evening.": ["fully booked", "out of town", "having dinner with friends"],
+    "let's ___ and meet at noon.": ["split the difference", "compromise", "split it down the middle"],
+    "let's confirm ___.": ["the day before", "the details", "the time"],
+    "is it safe to ___?": ["walk there at night", "drink the tap water", "leave my bag here"],
+    "excuse me, i think ___.": ["this is my seat", "you dropped this", "there's a mistake"],
+    "sorry, i'm ___ right now.": ["tied up", "in the middle of something", "on my way out"],
+    "sorry, that's ___ my thing.": ["not really", "not exactly", "just not"],
+    "could i have ___?": ["a moment of your time", "a receipt", "a glass of water"],
+    "do you have ___?": ["a map of the city", "a table for two", "any openings tomorrow"],
+    "i'm ___, but i'm lost.": ["sorry to bother you", "not from around here", "new here"],
+    "i have to ___.": ["cancel our lunch", "get going", "finish this today"],
+    "can i take ___?": ["a rain check", "a look at the menu", "a message"],
+    "that's ___.": ["one way to see it", "a fair point", "fair enough"],
+    "let's hear ___ before deciding.": ["both sides", "the full story", "what they think"],
+    "i'd like to ___ for a moment.": ["play devil's advocate", "step back", "take a different angle"],
+    "to be honest, i'm ___.": ["not sure that'll work", "not convinced", "worried about the timeline"],
+    "how much is ___?": ["a taxi to downtown", "the fare", "a day pass"],
+    "how long is ___ in hong kong?": ["the layover", "the stopover", "the flight"],
+    "i'd love to, but i'm ___.": ["already booked", "out of town that day", "swamped this week"],
+    "i think we're ___.": ["getting off track", "going in circles", "almost out of time"],
+    "we're ___.": ["running out of time", "almost done", "ahead of schedule"],
+    "i'll send ___ right after this.": ["the summary", "the notes", "the file"],
+    "let's ___, shall we?": ["get started", "begin", "get going"],
+    "i'm ___ to mina.": ["handing this over", "passing this on", "introducing you"],
+    "i just need ___.": ["some time alone", "a minute", "a break"],
+    "nothing seems to be ___.": ["going right", "working today", "helping"],
+    "i need to ___.": ["get this off my chest", "check my schedule", "refill my prescription"],
+    "i'm ___ the second option.": ["leaning towards", "going with", "in favor of"],
+    "i've been ___ lately.": ["feeling a bit off", "really busy", "trying to eat better"],
+    "i have ___ in an hour.": ["a connecting flight", "a meeting", "a dentist appointment"],
+    "what time is ___?": ["the last train", "checkout", "the meeting"],
+    "let's ___ in two weeks.": ["schedule a follow-up", "meet again", "touch base"],
+    "i feel ___ right here.": ["a sharp pain", "a dull ache", "some pressure"],
+    "could i get ___ for this?": ["a refund", "a receipt", "a price check"],
+    "to ___, we could reduce the scope.": ["build on that point", "keep it simple", "save time"],
+    "i've been ___ since yesterday.": ["feeling dizzy", "running a fever", "feeling nauseous"],
+    "i've been ___.": ["under a lot of stress", "really busy", "sleeping badly"],
+    "where's ___?": ["the nearest subway station", "the restroom", "gate 14"],
+    "how do i get ___?": ["a transit card", "to the airport", "there from here"],
+    "i'll have ___.": ["the same thing", "a coffee", "the soup of the day"],
+    "work's been ___.": ["keeping me busy", "really hectic", "crazy lately"],
+    "let's ___.": ["call it a day", "grab a coffee", "get started"],
+    "i'm ___.": ["returning your call", "just checking in", "on my way"],
+    "let's ___ for now.": ["table that", "leave it there", "park this"],
+    "i'm ___ about it.": ["on the fence", "still thinking", "a bit unsure"],
+    "it's okay to ___.": ["not be okay", "ask for help", "take a break"],
+    "who's ___?": ["taking notes", "presenting today", "leading this"],
+    "we'll have to ___.": ["agree to disagree", "see how it goes", "wait and see"],
+    "i think ___.": ["I'm lost", "we took a wrong turn", "this is the wrong stop"],
+    "it's been ___.": ["getting worse", "a long week", "like that all day"],
+    "you're ___.": ["on mute", "breaking up", "cutting out"],
+    "could we ___?": ["sit outside", "get the check", "split the bill"],
+    "i'm still ___.": ["working on it", "waiting to hear back", "thinking about it"]
   };
   var CH_OBJ_VERB = {};
   ('get have take bring order buy book need want like love try check call send meet start finish open close ' +
@@ -632,6 +884,7 @@
   function inSpeakRun() { return !$('#speakRun').hidden; }
   function inChatRoom() { return !$('#chatRoom').hidden; }
   function leaveStudy() {
+    recReset();
     S = null;
     showStudy(false);
     showTab('home');
@@ -2001,19 +2254,20 @@
   /* ---------------- 피드백 공통 ---------------- */
   function showFeedback(ok, bodyHtml, c, rr, nextDue) {
     var fb = $('#feedback');
+    recReset();   /* 카드가 바뀌면 앞 카드의 녹음은 버린다(메모리에만 있음) */
     fb.innerHTML =
       '<div class="fb-head"><span class="fb-title ' + (ok ? 'ok' : 'no') + '">' + (ok ? '정답!' : '아쉬워요') + '</span>' +
       '<button class="fb-next" id="fbNext">다음</button></div>' +
       bodyHtml +
       explanationHtml(c) +
       optListHtml() +
-      chunkPanelHtml(exampleOf(c)) +
+      chunkPanelHtml(exampleOf(c), chunkProtect(c)) +
       patternPanelHtml(c) +
       sayRow(c) +
       '<div class="fb-srs">' + (ok ? '다음 복습: ' + nextDue + (rr.st >= MASTER_ST ? '' : ' · ' + rr.st + '단계') : '오답 등록 · 10분 뒤 다시 물어봐요') + '</div>';
     fb.hidden = false;
     $('#fbNext').addEventListener('click', advance);
-    bindChunkPanel(fb, exampleOf(c));
+    bindChunkPanel(fb, exampleOf(c), chunkProtect(c));
     bindPatternPanel(fb, c);
     var sb = $('#fbSay');
     if (sb) sb.addEventListener('click', function () { speakExample(c); });
@@ -3075,6 +3329,7 @@
 
   function speakShow() {
     if (!SP) return;
+    recReset();   /* 앞 문장의 녹음은 버린다 */
     if (!SP.queue.length) { speakFinish(); return; }
     if (SP.i >= SP.queue.length) { speakFinish(); return; }
     var c = SP.queue[SP.i];
@@ -3083,8 +3338,8 @@
     $('#speakKo').textContent = t.ko;
     var sc = $('#speakChunks');
     if (sc) {
-      sc.innerHTML = chunkPanelHtml(t.en);
-      bindChunkPanel(sc, t.en);
+      sc.innerHTML = chunkPanelHtml(t.en, chunkProtect(c, t.en));
+      bindChunkPanel(sc, t.en, chunkProtect(c, t.en));
     }
     $('#speakTarget').classList.toggle('sent', String(t.en).split(/\s+/).length > 3);
     $('#speakTag').textContent = (spType === 'sent' ? '문장을 따라 말해 보세요' : '단어를 따라 말해 보세요') +
@@ -3167,6 +3422,7 @@
 
   function endSpeakRun() {
     SP = null;
+    recReset();
     if ($('#speakChunks')) $('#speakChunks').innerHTML = '';
     $('#speakRun').hidden = true;
     $('#speakSetup').hidden = false;
@@ -3427,6 +3683,7 @@
 
   var chatTopic = null;
   var chatBusy = false;
+  var chatRuleFilter = '';   /* 자주 고친 표현 칩 → 그 규칙에 걸린 문장만 보기 */
 
   function chatStore(id) {
     store.chat = store.chat || {};
@@ -3444,9 +3701,16 @@
 
   /* 회화방 '내 문장 기록' — 내가 고친 곳을 세어 오늘 N곳·누적 M곳과 자주 고친 규칙을 보여 준다.
      저장 구조는 그대로(turns[].notes)라 예전 기록도 그대로 집계된다. */
+  /* 최근 7일 vs 지난 7일 vs 전체 — 교정이 줄고 있는지 한눈에. 규칙별 횟수는 필터로도 쓴다. */
   function chatFixStats() {
+    var DAY = 86400000;
+    var now = Date.now();
     var today = todayKey();
-    var acc = { all: 0, today: 0, rules: {}, top: [] };
+    var startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    var t0 = startToday.getTime();
+    var acc = { all: 0, today: 0, week: 0, prevWeek: 0, rules: {}, weekRules: {}, top: [], week7: [] };
+    var byDay = {};
+    for (var d = 0; d < 7; d++) byDay[todayKey(new Date(t0 - d * DAY))] = 0;
     Object.keys(store.chat || {}).forEach(function (id) {
       var t = store.chat[id];
       if (!t || !t.turns) return;
@@ -3457,16 +3721,28 @@
         if (!notes.length && m.corrected && m.corrected !== m.text) {
           notes = [{ from: m.text, to: m.corrected, why: '더 자연스러운 표현' }];
         }
+        if (!notes.length) return;
+        var at = m.at || 0;
+        var dk = todayKey(new Date(at));
         acc.all += notes.length;
-        if (todayKey(new Date(m.at || 0)) === today) acc.today += notes.length;
+        if (dk === today) acc.today += notes.length;
+        if (at >= t0 - 6 * DAY) acc.week += notes.length;
+        else if (at >= t0 - 13 * DAY) acc.prevWeek += notes.length;
+        if (byDay[dk] != null) byDay[dk] += notes.length;
         notes.forEach(function (n) {
           var k = n.why || ((n.from || '') + ' → ' + (n.to || ''));
           acc.rules[k] = (acc.rules[k] || 0) + 1;
+          if (at >= t0 - 6 * DAY) acc.weekRules[k] = (acc.weekRules[k] || 0) + 1;
         });
       });
     });
-    acc.top = Object.keys(acc.rules).map(function (k) { return { why: k, n: acc.rules[k] }; })
-      .sort(function (a, b) { return b.n - a.n; }).slice(0, 3);
+    acc.top = Object.keys(acc.rules).map(function (k) { return { why: k, n: acc.rules[k], w: acc.weekRules[k] || 0 }; })
+      .sort(function (a, b) { return (b.n - a.n) || (b.w - a.w); }).slice(0, 4);
+    /* 오래된 날 → 오늘 순 7칸 */
+    for (var i = 6; i >= 0; i--) {
+      var key = todayKey(new Date(t0 - i * DAY));
+      acc.week7.push({ d: key, n: byDay[key] || 0 });
+    }
     return acc;
   }
 
@@ -3544,16 +3820,43 @@
     if (st) {
       var n = chatHistoryCount();
       st.textContent = n
-        ? '내가 말한 문장 ' + n + '개 · 오늘 ' + fx.today + '곳 · 누적 ' + fx.all + '곳을 고쳤어요.'
+        ? '내가 말한 문장 ' + n + '개 · 오늘 ' + fx.today + '곳 · 최근 7일 ' + fx.week + '곳 · 누적 ' + fx.all + '곳을 고쳤어요.'
         : '아직 기록이 없어요. 주제를 골라 한마디만 해도 쌓입니다.';
+    }
+    /* 최근 7일 추이 — 막대 7칸(오래된 날→오늘)과 지난 7일 대비 */
+    var tr = $('#chatFixTrend');
+    if (tr) {
+      if (!fx.all) tr.innerHTML = '';
+      else {
+        var max = 1;
+        fx.week7.forEach(function (d) { if (d.n > max) max = d.n; });
+        var diff = fx.week - fx.prevWeek;
+        var diffTxt = fx.prevWeek ? (diff === 0 ? '지난 7일과 같아요' : diff > 0 ? '지난 7일보다 ' + diff + '곳 많아요' : '지난 7일보다 ' + (-diff) + '곳 적어요')
+          : '지난 7일 기록은 없어요';
+        tr.innerHTML = '<div class="fix-trend">' +
+          '<div class="fix-bars" aria-label="최근 7일 교정 추이">' + fx.week7.map(function (d, i) {
+            return '<i class="' + (i === 6 ? 'today' : '') + (d.n ? '' : ' zero') + '" style="height:' + (4 + Math.round(d.n / max * 18)) + 'px" title="' + escapeHtml(d.d) + ' · ' + d.n + '곳"></i>';
+          }).join('') + '</div>' +
+          '<span class="fix-trend-t">최근 7일 <b>' + fx.week + '</b>곳 · ' + diffTxt + '</span></div>';
+      }
     }
     var top = $('#chatFixTop');
     if (top) {
       top.innerHTML = fx.all && fx.top.length
-        ? '<p class="fix-top-lbl">자주 고친 곳</p><div class="fix-top-chips">' + fx.top.map(function (r) {
-          return '<span class="fix-top-chip">' + escapeHtml(r.why) + ' <b>' + r.n + '</b></span>';
-        }).join('') + '</div>'
+        ? '<p class="fix-top-lbl">자주 고친 곳 · 눌러서 이 표현만 보기</p><div class="fix-top-chips">' + fx.top.map(function (r) {
+          return '<button class="fix-top-chip' + (chatRuleFilter === r.why ? ' on' : '') + '" data-why="' + escapeHtml(r.why) + '">' +
+            escapeHtml(r.why) + ' <b>' + r.n + '</b>' + (r.w && r.w !== r.n ? '<em>7일 ' + r.w + '</em>' : '') + '</button>';
+        }).join('') + '</div>' +
+        (chatRuleFilter ? '<p class="fix-filter">‘' + escapeHtml(chatRuleFilter) + '’만 보는 중 <button class="ghost-btn small" id="fixFilterClear">전체 보기</button></p>' : '')
         : '';
+      $$('#chatFixTop .fix-top-chip').forEach(function (b) {
+        b.addEventListener('click', function () {
+          chatRuleFilter = chatRuleFilter === b.dataset.why ? '' : b.dataset.why;
+          renderChatTab();
+        });
+      });
+      var fc = $('#fixFilterClear');
+      if (fc) fc.addEventListener('click', function () { chatRuleFilter = ''; renderChatTab(); });
     }
     var fd = $('#chatFixDrill');
     if (fd) {
@@ -3573,6 +3876,13 @@
         s.turns.forEach(function (x) { if (x.role === 'me') rows.push({ t: t, x: x }); });
       });
       rows.sort(function (a, b) { return b.x.at - a.x.at; });
+      if (chatRuleFilter) {
+        rows = rows.filter(function (r) {
+          return (r.x.notes || []).some(function (n) {
+            return (n.why || ((n.from || '') + ' → ' + (n.to || ''))) === chatRuleFilter;
+          });
+        });
+      }
       hist.innerHTML = rows.length ? rows.slice(0, 30).map(function (r) {
         var x = r.x;
         return '<div class="hrow"><div class="hrow-top"><span class="hrow-topic">' + r.t.icon + ' ' + r.t.name + '</span>' +
@@ -3583,7 +3893,10 @@
             return '<li><b>' + escapeHtml(n.from) + '</b> → <b>' + escapeHtml(n.to) + '</b> · ' + escapeHtml(n.why) + '</li>';
           }).join('') + '</ul>' : '<p class="hrow-ok">교정할 곳 없음</p>') +
           '</div>';
-      }).join('') : '<p class="muted small">기록이 쌓이면 여기에서 한 번에 복습할 수 있어요.</p>';
+      }).join('') : '<p class="muted small">' +
+        (chatRuleFilter ? '이 표현에 걸린 문장이 아직 없어요. <button class="ghost-btn small" id="fixFilterClear2">전체 보기</button>' : '기록이 쌓이면 여기에서 한 번에 복습할 수 있어요.') + '</p>';
+      var fc2 = $('#fixFilterClear2');
+      if (fc2) fc2.addEventListener('click', function () { chatRuleFilter = ''; renderChatTab(); });
     }
     /* AI 키 상태 */
     var aiState = $('#aiState');
@@ -4157,9 +4470,28 @@
       setAutoSay: function (v) { store.settings.autoSay = !!v; },
       hasShadow: function () { return !!$('#fbShadow'); },
       /* v4.2 */
-      chunks: function (t) { return chunksOf(t); },
+      chunks: function (t, b) { return chunksOf(t, b); },
+      convCards: function () { return (LEVELS[6] || []).map(function (c) { return { w: c.w, b: c.b || '' }; }); },
+      patternBank: function () { return CH_PATTERN_BANK; },
+      patternAll: function () {
+        var out = [];
+        (LEVELS[6] || []).forEach(function (c) {
+          var p = patternDrill(c);
+          out.push({ w: c.w, b: c.b || '', frame: p ? p.frame : null, slots: p ? p.slots.slice() : [] });
+        });
+        return out;
+      },
+      chunkProtect: function (w) { var c = cardByW(w); return c ? chunkProtect(c) : ''; },
+      recState: function () {
+        return {
+          supported: recSupport(), state: REC.state, hasUrl: !!REC.url, note: REC.note || '',
+          btn: $('#feedback .rec-btn') ? $('#feedback .rec-btn').textContent : ''
+        };
+      },
+      recReset: recReset,
       pattern: function (w) { var c = cardByW(w); return c ? patternDrill(c) : null; },
       fixStats: function () { return chatFixStats(); },
+      fixFilter: function (v) { chatRuleFilter = String(v || ''); renderChatTab(); return chatRuleFilter; },
       fixCards: function () { return correctionCards(SET_SIZE).map(function (c) { return c.w; }); },
       startFixDrill: startFixDrill,
       recallPill: function () {

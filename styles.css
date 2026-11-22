@@ -1066,10 +1066,33 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fix-top-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .fix-top-chip {
   font-size: 11px; font-weight: 600; color: var(--text-soft);
-  background: var(--bg-soft); border-radius: 8px; padding: 4px 7px;
+  background: var(--bg-soft); border: 1px solid transparent; border-radius: 8px; padding: 4px 7px;
+  font-family: inherit; cursor: pointer;
   word-break: keep-all; overflow-wrap: anywhere;
 }
 .fix-top-chip b { color: var(--bad); }
+.fix-top-chip em { font-style: normal; font-size: 10px; color: var(--accent); margin-left: 3px; }
+.fix-top-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.fix-filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 7px 0 0; font-size: 11px; color: var(--text-dim); }
+.fix-filter .ghost-btn { padding: 4px 8px; font-size: 10.5px; }
+/* 최근 7일 교정 추이 — 막대 7칸 */
+.fix-trend { display: flex; align-items: flex-end; gap: 8px; margin: 8px 0 2px; }
+.fix-bars { display: flex; align-items: flex-end; gap: 3px; height: 24px; }
+.fix-bars i {
+  display: block; width: 7px; border-radius: 2px 2px 1px 1px;
+  background: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.fix-bars i.zero { background: var(--line); }
+.fix-bars i.today { background: var(--accent); }
+.fix-trend-t { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+.fix-trend-t b { color: var(--accent); }
+
+/* ===== v4.3.0 · 내 발음 녹음 · 원어민 비교 ===== */
+.chk-rec { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 7px; }
+.chk-rec .ghost-btn { padding: 6px 9px; font-size: 11.5px; }
+.chk-rec .rec-btn.rec-on { background: color-mix(in srgb, var(--bad) 16%, var(--bg-elev)); border-color: var(--bad); color: var(--bad); }
+.rec-note { font-size: 10.5px; line-height: 1.35; color: var(--text-dim); word-break: keep-all; }
+.rec-note.rec-off { color: var(--text-soft); }
 #chatFixDrill { margin-top: 10px; }
 
 .recall-pill {
