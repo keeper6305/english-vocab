@@ -1089,7 +1089,7 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 
 /* ===== v4.3.0 · 내 발음 녹음 · 원어민 비교 ===== */
 .chk-rec { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 7px; }
-.chk-rec .ghost-btn { padding: 6px 9px; font-size: 11.5px; }
+.chk-rec .ghost-btn { flex: 0 1 auto; padding: 6px 9px; font-size: 11.5px; }
 .chk-rec .rec-btn.rec-on { background: color-mix(in srgb, var(--bad) 16%, var(--bg-elev)); border-color: var(--bad); color: var(--bad); }
 .rec-note { font-size: 10.5px; line-height: 1.35; color: var(--text-dim); word-break: keep-all; }
 .rec-note.rec-off { color: var(--text-soft); }
