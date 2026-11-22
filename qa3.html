@@ -1717,7 +1717,8 @@ async function v43RecTests(c) {
     if (!card) break;
     await answerOne(c, true);
     await sleep(70);
-    if (!q('#feedback .chk')) continue;
+    /* 숨겨진 이전 카드의 피드백 잔여물(.chk)이 남아 있을 수 있으니 '보이는' 패널만 본다 */
+    if (!q('#feedback') || q('#feedback').hidden || !q('#feedback .chk')) continue;
     found = true;
     rec(c.w, '녹음:패널 행', !!q('#feedback .chk-rec'), 'ok');
     var rs = qa.recState();
@@ -1733,7 +1734,8 @@ async function v43RecTests(c) {
         'state=' + rs2.state + ' · note=' + rs2.note.slice(0, 40));
       rec(c.w, '녹음:안내 화면 표시', /마이크|녹음|권한|찾지|허용/.test(rs2.noteText) && rs2.noteHidden === false,
         'noteHidden=' + rs2.noteHidden + ' · ' + rs2.noteText.slice(0, 30));
-      rec(c.w, '녹음:실패해도 안 깨짐', !q('#feedback').hidden && rs2.chips > 0, 'chips=' + rs2.chips);
+      rec(c.w, '녹음:실패해도 안 깨짐', !q('#feedback').hidden && rs2.chips > 0 && !!q('#feedback .chk-chip'),
+        'hidden=' + q('#feedback').hidden + ' chips=' + rs2.chips);
     } else {
       rec(c.w, '녹음:미지원 안내', /지원하지 않아요/.test(q('#feedback .chk-rec').textContent), q('#feedback .chk-rec').textContent.slice(0, 40));
     }
