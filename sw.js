@@ -4,7 +4,7 @@
  * - css·아이콘 등 정적 자산: cache-first + 백그라운드 갱신 (오프라인에서도 즉시)
  * - VERSION 을 올리면 이전 버전 캐시는 activate 에서 전부 삭제
  */
-var VERSION = 'v4.3.2-gh';
+var VERSION = 'v4.3.3-gh';
 var CORE = [
   './',
   'index.html',

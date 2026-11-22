@@ -1074,7 +1074,7 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fix-top-chip em { font-style: normal; font-size: 10px; color: var(--accent); margin-left: 3px; }
 .fix-top-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .fix-filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 7px 0 0; font-size: 11px; color: var(--text-dim); }
-.fix-filter .ghost-btn { padding: 4px 8px; font-size: 10.5px; }
+.fix-filter .ghost-btn { flex: 0 0 auto; white-space: nowrap; padding: 4px 8px; font-size: 10.5px; }
 /* 최근 7일 교정 추이 — 막대 7칸 */
 .fix-trend { display: flex; align-items: flex-end; gap: 8px; margin: 8px 0 2px; }
 .fix-bars { display: flex; align-items: flex-end; gap: 3px; height: 24px; }
