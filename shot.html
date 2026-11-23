@@ -240,7 +240,7 @@ async function drive(f) {
       await sleep(300);
       const fp = q('#chatFixTrend .fp-chip[data-p="30"]');
       if (fp) { fp.click(); await sleep(300); }
-      const chip2 = d.querySelector('#chatFixTop .fix-top-chip[data-why="시제"]');
+      const chip2 = d.querySelector('#chatFixTop .fix-top-chip');
       if (chip2) { chip2.click(); await sleep(300); }
       const cards3 = Array.from(d.querySelectorAll('.card'));
       const fc3 = cards3.find(x => x.textContent.indexOf('내 문장 기록') > -1);
