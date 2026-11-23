@@ -4080,7 +4080,7 @@
             return '<button class="fp-chip' + (x === fx.p ? ' active' : '') + '" data-p="' + x + '">' +
               (x === 0 ? '전체' : x + '일') + '</button>';
           }).join('') + '</div>' +
-          '<div class="fix-trend">' +
+          '<div class="fix-trend' + (dense ? ' dense' : '') + '">' +
           '<div class="fix-bars' + (dense ? ' dense' : '') + '" aria-label="' + fixPeriodLabel(fx.p) + ' 교정 추이">' + fx.series.map(function (d, i) {
             return '<i class="' + (i === fx.series.length - 1 && fx.p !== 0 ? 'today' : '') + (d.n ? '' : ' zero') +
               '" style="height:' + (4 + Math.round(d.n / max * 18)) + 'px" title="' + escapeHtml(d.label) + ' · ' + d.n + '곳"></i>';

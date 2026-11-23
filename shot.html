@@ -232,10 +232,10 @@ async function drive(f) {
       qa().chatSend('He go to school everyday.'); await sleep(650);
       qa().chatClose(); await sleep(300);
       qa().seedFixes([
-        { days: 0, notes: [{ from: 'a', to: 'b', why: '시제' }] },
-        { days: 3, notes: [{ from: 'a', to: 'b', why: '시제' }, { from: 'c', to: 'd', why: '관사' }] },
-        { days: 20, notes: [{ from: 'e', to: 'f', why: '시제' }, { from: 'g', to: 'h', why: '전치사' }] },
-        { days: 45, notes: [{ from: 'i', to: 'j', why: '시제' }, { from: 'k', to: 'l', why: '관사' }] }
+        { days: 0, text: 'I very like this place.', corrected: 'I really like this place.', notes: [{ from: 'very like', to: 'really like', why: 'very는 동사를 꾸미지 못합니다 — really' }] },
+        { days: 3, text: 'Yesterday I go to the gym.', corrected: 'Yesterday I went to the gym.', notes: [{ from: 'I go', to: 'I went', why: '과거 시점(yesterday)이 있어 과거형' }, { from: 'to the gym', to: 'to the gym', why: '관사' }] },
+        { days: 20, text: 'He go to school everyday.', corrected: 'He goes to school every day.', notes: [{ from: 'He go', to: 'He goes', why: '3인칭 단수 현재' }, { from: 'everyday', to: 'every day', why: '전치사·부사' }] },
+        { days: 45, text: 'I am agree with you.', corrected: 'I agree with you.', notes: [{ from: 'I am agree', to: 'I agree', why: 'be동사 중복' }, { from: 'with you', to: 'with you', why: '관사' }] }
       ]);
       await sleep(300);
       const fp = q('#chatFixTrend .fp-chip[data-p="30"]');

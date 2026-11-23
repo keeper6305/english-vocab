@@ -1076,15 +1076,19 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fix-filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 7px 0 0; font-size: 11px; color: var(--text-dim); }
 .fix-filter .ghost-btn { flex: 0 0 auto; white-space: nowrap; padding: 4px 8px; font-size: 10.5px; }
 /* 최근 7일 교정 추이 — 막대 7칸 */
-.fix-trend { display: flex; align-items: flex-end; gap: 8px; margin: 8px 0 2px; }
-.fix-bars { display: flex; align-items: flex-end; gap: 3px; height: 24px; }
+.fix-trend { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin: 8px 0 2px; }
+/* 막대는 줄어들지 않게 — 30칸이면 안내 문구가 아래 줄로 내려간다(360px 에서도 막대가 뭉개지지 않게) */
+.fix-bars { display: flex; align-items: flex-end; gap: 3px; height: 24px; flex: 0 0 auto; }
 .fix-bars i {
-  display: block; width: 7px; border-radius: 2px 2px 1px 1px;
+  display: block; width: 7px; border-radius: 2px 2px 1px 1px; flex: 0 0 auto;
   background: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
 .fix-bars i.zero { background: var(--line); }
 .fix-bars i.today { background: var(--accent); }
-.fix-trend-t { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+.fix-trend-t { font-size: 11px; color: var(--text-dim); line-height: 1.4; flex: 1 1 130px; min-width: 0; }
+/* 30칸·전체처럼 막대가 길면 안내 문구는 아래 줄 전체 폭으로 */
+.fix-trend.dense .fix-trend-t { flex: 1 1 100%; }
+.fix-trend.dense { row-gap: 5px; }
 .fix-trend-t b { color: var(--accent); }
 
 /* ===== v4.4.0 · 교정 기간(7일/30일/전체) · 규칙 미니 추이 ===== */
@@ -1101,7 +1105,7 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fix-bars.dense { gap: 1px; }
 .fix-bars.dense i { width: 4px; }
 .fix-rule { display: flex; align-items: flex-end; gap: 7px; margin: 6px 0 0; flex-wrap: wrap; }
-.fix-rule-t { font-size: 10.5px; color: var(--text-dim); line-height: 1.4; }
+.fix-rule-t { font-size: 10.5px; color: var(--text-dim); line-height: 1.4; flex: 1 1 130px; min-width: 0; }
 .fix-rule-t b { color: var(--accent); }
 .fix-rule .fix-bars { height: 17px; }
 
