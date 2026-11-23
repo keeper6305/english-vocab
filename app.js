@@ -4819,6 +4819,7 @@
         /* 마이크 없는 점검 환경에서 녹음 이후 UI(▶ 내 발음·비교·속도)를 확인하기 위한 것.
            실제 앱 화면에서는 쓰이지 않는다(QA 모드에만 열린다) */
         if (REC.url) { try { URL.revokeObjectURL(REC.url); } catch (e) {} }
+        if (!REC.box) REC.box = $('#feedback .chk-rec');
         try {
           var blob = new Blob([new Uint8Array(2048)], { type: 'audio/webm' });
           REC.url = URL.createObjectURL(blob);

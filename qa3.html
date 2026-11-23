@@ -1928,7 +1928,7 @@ function normSent(t) {
 
 async function v44PatternTests(c) {
   var qa = c.win.__QA;
-  var b1 = qa.patternBank(), b2 = qa.patternBank2();
+  var b1 = qa.patternBank1(), b2 = qa.patternBank2();
   var k1 = Object.keys(b1), k2 = Object.keys(b2);
   rec(c.w, '틀2:사전 102개', k2.length === 102, 'n=' + k2.length);
   var all = qa.patternAll();
@@ -2018,10 +2018,10 @@ async function v44PatternTests(c) {
       var inp = c.q('#qaPatMount .pat-input');
       var ownSay = c.q('#qaPatMount [data-act="ownsay"]');
       if (inp && ownSay) {
-        inp.value = 'my two coffees';
+        inp.value = 'speak up a little';
         ownSay.click(); await sleep(180);
         var sp2 = c.spoken();
-        rec(c.w, '틀2:내 말 넣기 재생', !!sp2 && normSent(sp2.text) === normSent(m.frame.replace('___', 'my two coffees')),
+        rec(c.w, '틀2:내 말 넣기 재생', !!sp2 && normSent(sp2.text) === normSent(m.frame.replace('___', 'speak up a little')),
           sp2 ? sp2.text : 'none');
       }
     }
