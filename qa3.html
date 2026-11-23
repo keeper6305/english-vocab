@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>QA v4.3.0 전수 클릭 점검</title>
+<title>QA v4.4.0 전수 클릭 점검</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; margin: 0; padding: 14px; background: #eef0f6; color: #191c2b; }
@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>v4.3.0 전수 클릭 점검 — 틀 사전 88개·생성 문장 전수 검사 · 청크 b 경계 정렬 · 내 발음 녹음/원어민 비교 · 교정 7일 추이+규칙 필터 · 기존 513항목 · 360/390</h1>
+<h1>v4.4.0 전수 클릭 점검 — 2차 틀 사전 102개(칩 239문장)·생성 문장 전수 검사 · 비교 듣기 원어민 1.0x/0.75x · 교정 7일/30일/전체+규칙 미니 추이 · 기존 572항목 · 360/390/430</h1>
 <div id="sum">시작 중…</div>
 <pre id="out">…</pre>
 <div class="frames" id="frames"></div>
@@ -26,7 +26,7 @@
  *  - index.html?qa=1 을 360·390px iframe 으로 띄워 실제 DOM 클릭으로 검사
  *  - 결과는 매번 #out 에 즉시 기록 (중간에 페이지가 넘어가도 남게)
  * ============================================================ */
-var WIDTHS = [360, 390];
+var WIDTHS = [360, 390, 430];
 var out = document.getElementById('out');
 var sum = document.getElementById('sum');
 var checks = [];
@@ -1918,6 +1918,274 @@ async function sGradeTests(c) {
   await goHome(c);
 }
 
+
+/* ============================================================
+ *  Y. v4.4.0 — 2차 틀 사전(조동사+주어) · 비교 듣기 원어민 속도 · 교정 기간 7/30/전체
+ * ============================================================ */
+function normSent(t) {
+  return String(t == null ? '' : t).toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function v44PatternTests(c) {
+  var qa = c.win.__QA;
+  var b1 = qa.patternBank(), b2 = qa.patternBank2();
+  var k1 = Object.keys(b1), k2 = Object.keys(b2);
+  rec(c.w, '틀2:사전 102개', k2.length === 102, 'n=' + k2.length);
+  var all = qa.patternAll();
+  var elig = all.filter(function (x) { return x.frame; });
+  var chips = elig.filter(function (x) { return x.slots.length; });
+  var frames = {};
+  elig.forEach(function (x) { frames[x.frame.toLowerCase().replace(/\s+/g, ' ').trim()] = 1; });
+  rec(c.w, '틀2:치환 가능 문장 239', elig.length === 239, 'eligible=' + elig.length + '/' + all.length);
+  rec(c.w, '틀2:전 문장 칩', chips.length === elig.length, chips.length + '/' + elig.length);
+  rec(c.w, '틀2:틀 190개', Object.keys(frames).length === 190, 'frames=' + Object.keys(frames).length);
+  var noBank = Object.keys(frames).filter(function (f) { return !b1[f] && !b2[f]; });
+  rec(c.w, '틀2:모든 틀에 사전', noBank.length === 0, '없음=' + noBank.length + (noBank.length ? ' [' + noBank.slice(0, 3).join(' , ') + ']' : ''));
+  var dead = k2.filter(function (k) { return !frames[k]; });
+  rec(c.w, '틀2:죽은 항목 0', dead.length === 0, dead.slice(0, 3).map(function (x) { return JSON.stringify(x); }).join(','));
+  var clash = k2.filter(function (k) { return !!b1[k]; });
+  rec(c.w, '틀2:1차와 겹침 0', clash.length === 0, clash.slice(0, 3).map(function (x) { return JSON.stringify(x); }).join(','));
+
+  /* 1·2차 사전 × 슬롯 = 생성 문장 전수 검사 — 관사·구두점·중복·길이·프레임 겹침 */
+  var VOW = /^[aeiou]/, HOUR = ['hour', 'hours', 'honest', 'honor', 'honour'];
+  var probs = [], n = 0, seen = {};
+  [['1', b1], ['2', b2]].forEach(function (pair) {
+    var tag = pair[0], bank = pair[1];
+    Object.keys(bank).forEach(function (k) {
+      if (!Array.isArray(bank[k])) { probs.push(tag + 'array:' + k); return; }
+      if (!bank[k].length || bank[k].length > 4) probs.push(tag + 'count:' + k);
+      if (k.indexOf('___') < 0) probs.push(tag + 'blank:' + k);
+      var fw = k.toLowerCase().match(/[a-z']+/g) || [];
+      bank[k].forEach(function (slot) {
+        var sent = k.replace('___', slot);
+        sent = sent.charAt(0).toUpperCase() + sent.slice(1);
+        n++;
+        if (tag === '2' && slot !== slot.toLowerCase()) probs.push('case:' + slot);
+        if (tag === '2' && /\bi\b/.test(slot)) probs.push('small-i:' + slot);
+        if (/___/.test(sent)) probs.push('left:' + sent);
+        if (/\s{2,}|\s[,.?!]/.test(sent)) probs.push('space:' + sent);
+        if (!/[.?!]$/.test(sent)) probs.push('stop:' + sent);
+        if (seen[sent]) probs.push('dup:' + sent);
+        seen[sent] = 1;
+        if (slot.split(' ').length > 5) probs.push('long-slot:' + slot);
+        if (sent.split(' ').length > 18) probs.push('long:' + sent);
+        var t = sent.split(' ');
+        for (var i = 1; i < t.length; i++) {
+          var a = t[i - 1].toLowerCase().replace(/[.,!?;:]/g, ''), b = t[i].toLowerCase().replace(/[.,!?;:]/g, '');
+          if (a && a === b) probs.push('repeat:' + sent);
+          if (a === 'a' && VOW.test(b)) probs.push('a+vowel:' + sent);
+          if (a === 'an' && b && !VOW.test(b) && HOUR.indexOf(b) < 0) probs.push('an+cons:' + sent);
+        }
+        var sw = slot.toLowerCase().match(/[a-z']+/g) || [];
+        for (var j = 0; j < fw.length - 1; j++) {
+          for (var m = 0; m < sw.length - 1; m++) {
+            if (fw[j] === sw[m] && fw[j + 1] === sw[m + 1]) probs.push('overlap(' + fw[j] + ' ' + fw[j + 1] + '):' + sent);
+          }
+        }
+      });
+    });
+  });
+  rec(c.w, '틀2:생성 문장 전수 검사', probs.length === 0,
+    n + '문장 · 문제 ' + probs.length + (probs.length ? ' · ' + probs.slice(0, 3).join(' ; ') : ''));
+
+  /* 새로 덮은 틀 — 실제 카드로 */
+  var p1 = qa.pattern('Could you forward that to me?');
+  rec(c.w, '틀2:조동사+주어(Could you)', !!p1 && p1.frame === 'Could you ___?' && p1.tier === 2 &&
+    p1.slots.length === 3 && p1.slots.indexOf('open the window') > -1,
+    p1 ? p1.frame + ' · ' + p1.slots.join(' / ') : 'none');
+  var p2 = qa.pattern('Can I try this on?');
+  rec(c.w, '틀2:전치사로 끝나던 카드도 칩', !!p2 && p2.frame === 'Can I ___?' && p2.slots.length === 3,
+    p2 ? p2.frame + ' · ' + p2.slots.join(' / ') : 'none');
+  var p3 = qa.pattern('I had a rough day.');
+  rec(c.w, '틀2:과거 서술(I had)', !!p3 && p3.frame === 'I had ___.' && p3.slots.indexOf('a long week') > -1,
+    p3 ? p3.frame + ' · ' + p3.slots.join(' / ') : 'none');
+  rec(c.w, '틀2:게이트 유지', qa.pattern('Keep the change.') === null && qa.pattern('Look before you leap.') === null,
+    'Keep the change / Look before you leap → null');
+
+  /* 화면 — 피드백과 같은 경로로 패널을 붙여 칩·내 말 넣기를 실제로 누른다 */
+  var m = qa.patMount('Could you forward that to me?');
+  rec(c.w, '틀2:패널 칩 3개', !!m && m.chips === 3 && m.tier === 2, m ? 'chips=' + m.chips + ' tier=' + m.tier : 'none');
+  if (m) {
+    qa.patChipClick(1);
+    await sleep(180);
+    var exp = m.frame.replace('___', m.slots[1]);
+    var sp1 = c.spoken();
+    rec(c.w, '틀2:칩 → 치환 문장 재생', !!sp1 && normSent(sp1.text) === normSent(exp),
+      '들음=' + (sp1 ? sp1.text : 'none') + ' / 기대=' + exp);
+    var own = c.q('#qaPatMount [data-act="own"]');
+    if (own) {
+      own.click(); await sleep(80);
+      var inp = c.q('#qaPatMount .pat-input');
+      var ownSay = c.q('#qaPatMount [data-act="ownsay"]');
+      if (inp && ownSay) {
+        inp.value = 'my two coffees';
+        ownSay.click(); await sleep(180);
+        var sp2 = c.spoken();
+        rec(c.w, '틀2:내 말 넣기 재생', !!sp2 && normSent(sp2.text) === normSent(m.frame.replace('___', 'my two coffees')),
+          sp2 ? sp2.text : 'none');
+      }
+    }
+    boxScan(c, 'pattern-tier2');
+    qa.patUnmount();
+  }
+}
+
+async function v44RecTests(c) {
+  var q = c.q, qa = c.win.__QA;
+  await goHome(c);
+  await startLevel(c, 6, 'blank');
+  var found = false;
+  for (var t = 0; t < 14 && !found; t++) {
+    if (q('#resultBox') && !q('#resultBox').hidden) { await startLevel(c, 6, 'blank'); if (q('#view-study').hidden) break; }
+    if (!curCard(c)) break;
+    await answerOne(c, true);
+    await sleep(80);
+    if (q('#feedback') && !q('#feedback').hidden && q('#feedback .chk')) found = true;
+  }
+  rec(c.w, '비교속도:패널 확인', found, found ? 'ok' : '없음');
+  if (!found) { await leaveStudy(c); return; }
+
+  var spd0 = q('#feedback .cmp-speed');
+  rec(c.w, '비교속도:녹음 전 숨김', !!spd0 && spd0.hidden === true && qa.recState().cmpHidden === true,
+    'speedHidden=' + (spd0 ? spd0.hidden : 'none') + ' cmpHidden=' + qa.recState().cmpHidden);
+
+  qa.recFake(2);
+  await sleep(120);
+  var spd = q('#feedback .cmp-speed');
+  var btns = spd ? Array.prototype.slice.call(spd.querySelectorAll('.cmp-sp')) : [];
+  rec(c.w, '비교속도:그룹 표시·버튼 2개', !!spd && spd.hidden === false && btns.length === 2,
+    'hidden=' + (spd ? spd.hidden : 'none') + ' btns=' + btns.length);
+  rec(c.w, '비교속도:내 발음·비교 버튼 표시', qa.recState().mineHidden === false && qa.recState().cmpHidden === false,
+    'mine=' + qa.recState().mineHidden + ' cmp=' + qa.recState().cmpHidden);
+  var active0 = spd ? spd.querySelector('.cmp-sp.active') : null;
+  rec(c.w, '비교속도:기본은 앱 속도', !!active0 && Number(active0.dataset.recp) === Number(qa.state().speed),
+    'active=' + (active0 ? active0.dataset.recp : 'none') + ' 앱속도=' + qa.state().speed);
+
+  btns.filter(function (b) { return b.dataset.recp === '0.75'; })[0].click();
+  await sleep(260);
+  var sp75 = c.spoken();
+  rec(c.w, '비교속도:0.75x 고정', qa.recRateNow() === 0.75, 'rate=' + qa.recRateNow());
+  rec(c.w, '비교속도:원어민 0.75x 재생', !!sp75 && Math.abs(Number(sp75.rate) - 0.75) < 0.01,
+    sp75 ? 'rate=' + sp75.rate + ' · ' + String(sp75.text).slice(0, 34) : 'none');
+  rec(c.w, '비교속도:0.75x 활성 표시', spd.querySelectorAll('.cmp-sp.active').length === 1 &&
+    spd.querySelector('.cmp-sp.active').dataset.recp === '0.75', spd.querySelector('.cmp-sp.active').dataset.recp);
+  rec(c.w, '비교속도:속도 안내 토스트', q('#toast').textContent.indexOf('0.75') > -1, q('#toast').textContent);
+
+  btns.filter(function (b) { return b.dataset.recp === '1'; })[0].click();
+  await sleep(260);
+  var sp100 = c.spoken();
+  rec(c.w, '비교속도:1.0x 고정·재생', qa.recRateNow() === 1 && !!sp100 && Math.abs(Number(sp100.rate) - 1) < 0.01,
+    'rate=' + qa.recRateNow() + ' 발화rate=' + (sp100 ? sp100.rate : 'none'));
+
+  var audio = q('#feedback .rec-audio');
+  rec(c.w, '비교속도:녹음 재생 준비', !!audio && /^blob:/.test(audio.getAttribute('src') || ''),
+    audio ? String(audio.getAttribute('src')).slice(0, 18) : 'none');
+  var before = (c.win.__spoken || []).length;
+  qa.recClick('mine');
+  await sleep(120);
+  rec(c.w, '비교속도:내 발음은 TTS 아님', (c.win.__spoken || []).length === before, '새 발화=' + ((c.win.__spoken || []).length - before));
+
+  var dump = '';
+  try { dump = JSON.stringify(qa.state().store); } catch (e) {}
+  rec(c.w, '비교속도:저장 안 함', dump.indexOf('blob:') < 0, 'storeLen=' + dump.length);
+
+  /* 패널을 떠났다가 새 카드로 — 숨김 상태로 돌아오고 고른 속도는 기억 */
+  await leaveStudy(c);
+  await startLevel(c, 6, 'blank');
+  var again = false;
+  for (var t2 = 0; t2 < 12 && !again; t2++) {
+    if (q('#resultBox') && !q('#resultBox').hidden) { await startLevel(c, 6, 'blank'); if (q('#view-study').hidden) break; }
+    if (!curCard(c)) break;
+    await answerOne(c, true);
+    await sleep(80);
+    if (q('#feedback') && !q('#feedback').hidden && q('#feedback .chk')) again = true;
+  }
+  var spd2 = q('#feedback .cmp-speed');
+  rec(c.w, '비교속도:새 패널은 숨김', !!again && !!spd2 && spd2.hidden === true, 'again=' + again + ' hidden=' + (spd2 ? spd2.hidden : 'none'));
+  rec(c.w, '비교속도:고른 속도 기억', qa.recRateNow() === 1, 'rate=' + qa.recRateNow());
+  await leaveStudy(c);
+  await goHome(c);
+}
+
+async function v44FixTests(c) {
+  var q = c.q, qa = c.win.__QA, doc = c.doc;
+  q('.tab[data-tab="chat"]').click();
+  await sleep(150);
+  /* 지난 날짜 기록을 심어 기간 전환을 본다 — 오늘 1 · 3일 전 2 · 20일 전 2 · 45일 전 3 */
+  qa.seedFixes([
+    { days: 0, notes: [{ from: 'a', to: 'b', why: '시제' }] },
+    { days: 3, notes: [{ from: 'a', to: 'b', why: '시제' }, { from: 'c', to: 'd', why: '관사' }] },
+    { days: 20, notes: [{ from: 'e', to: 'f', why: '시제' }, { from: 'g', to: 'h', why: '전치사' }] },
+    { days: 45, notes: [{ from: 'i', to: 'j', why: '시제' }, { from: 'k', to: 'l', why: '관사' }, { from: 'm', to: 'n', why: '어순' }] }
+  ]);
+  await sleep(120);
+  var chips7 = doc.querySelectorAll('#chatFixTrend .fp-chip');
+  rec(c.w, '기간:칩 3개', chips7.length === 3, 'n=' + chips7.length);
+  rec(c.w, '기간:기본 7일', qa.fixPeriod() === 7 && !!doc.querySelector('#chatFixTrend .fp-chip.active[data-p="7"]'),
+    'period=' + qa.fixPeriod());
+
+  var f7 = qa.fixStats();
+  var sum7 = f7.series.reduce(function (a, d) { return a + d.n; }, 0);
+  var rows7 = doc.querySelectorAll('#chatHistory .hrow').length;
+  rec(c.w, '기간:7일 집계', f7.p === 7 && f7.series.length === 7 && sum7 === f7.pn, 'pn=' + f7.pn + ' bars=' + sum7 + '/' + f7.series.length);
+  rec(c.w, '기간:7일 막대 7칸', doc.querySelectorAll('#chatFixTrend .fix-bars i').length === 7, 'n=' + doc.querySelectorAll('#chatFixTrend .fix-bars i').length);
+  rec(c.w, '기간:7일 문구', q('#chatFixTrend .fix-trend-t').textContent.indexOf('최근 7일') > -1,
+    q('#chatFixTrend .fix-trend-t').textContent.slice(0, 40));
+  rec(c.w, '기간:7일 기록만', rows7 >= 1, 'rows=' + rows7);
+  boxScan(c, 'chat-period-7');
+
+  doc.querySelector('#chatFixTrend .fp-chip[data-p="30"]').click();
+  await sleep(140);
+  var f30 = qa.fixStats();
+  var sum30 = f30.series.reduce(function (a, d) { return a + d.n; }, 0);
+  var rows30 = doc.querySelectorAll('#chatHistory .hrow').length;
+  rec(c.w, '기간:30일 전환', qa.fixPeriod() === 30 && f30.p === 30, 'period=' + qa.fixPeriod());
+  rec(c.w, '기간:30일 막대 30칸', doc.querySelectorAll('#chatFixTrend .fix-bars i').length === 30,
+    'n=' + doc.querySelectorAll('#chatFixTrend .fix-bars i').length);
+  rec(c.w, '기간:30일 집계', sum30 === f30.pn && f30.pn >= f7.pn, 'pn=' + f30.pn + ' vs 7일 ' + f7.pn);
+  rec(c.w, '기간:30일 문구', q('#chatFixTrend .fix-trend-t').textContent.indexOf('최근 30일') > -1,
+    q('#chatFixTrend .fix-trend-t').textContent.slice(0, 40));
+  rec(c.w, '기간:30일이 더 많은 기록', rows30 >= rows7, 'rows=' + rows30 + ' vs ' + rows7);
+  boxScan(c, 'chat-period-30');
+
+  doc.querySelector('#chatFixTrend .fp-chip[data-p="0"]').click();
+  await sleep(140);
+  var f0 = qa.fixStats();
+  var sum0 = f0.series.reduce(function (a, d) { return a + d.n; }, 0);
+  rec(c.w, '기간:전체 전환', qa.fixPeriod() === 0 && f0.p === 0, 'period=' + qa.fixPeriod());
+  rec(c.w, '기간:전체 집계=누적', sum0 === f0.all && f0.pn === f0.all, 'pn=' + f0.pn + ' all=' + f0.all);
+  rec(c.w, '기간:전체 막대 주 단위', f0.series.length <= 12 && f0.series.length >= 6, 'weeks=' + f0.series.length);
+  rec(c.w, '기간:전체 주 평균 문구', /주 평균/.test(q('#chatFixTrend .fix-trend-t').textContent),
+    q('#chatFixTrend .fix-trend-t').textContent.slice(0, 44));
+  boxScan(c, 'chat-period-all');
+
+  /* 규칙 필터 × 기간 — 그 규칙의 미니 추이 */
+  var chip = Array.prototype.slice.call(doc.querySelectorAll('#chatFixTop .fix-top-chip'))
+    .filter(function (b) { return b.dataset.why === '시제'; })[0];
+  if (chip) {
+    chip.click(); await sleep(150);
+    var mini = q('#chatFixTop .fix-rule');
+    var bars = mini ? mini.querySelectorAll('.fix-bars i').length : 0;
+    rec(c.w, '기간:규칙 미니 추이', !!mini && bars === f0.series.length, 'bars=' + bars + ' 기간칸=' + f0.series.length);
+    rec(c.w, '기간:규칙 추이 문구', !!mini && /이 표현 · 전체/.test(mini.textContent) && /곳/.test(mini.textContent),
+      mini ? mini.textContent.slice(0, 50) : 'none');
+    boxScan(c, 'chat-rule-trend');
+    /* 7일로 돌아가면 미니 추이도 7칸 */
+    doc.querySelector('#chatFixTrend .fp-chip[data-p="7"]').click();
+    await sleep(150);
+    var mini2 = q('#chatFixTop .fix-rule');
+    var bars2 = mini2 ? mini2.querySelectorAll('.fix-bars i').length : 0;
+    rec(c.w, '기간:규칙 추이도 기간 따라', bars2 === 7, 'bars=' + bars2);
+    rec(c.w, '기간:규칙 필터 유지', doc.querySelectorAll('#chatFixTop .fix-top-chip.on').length === 1,
+      'on=' + doc.querySelectorAll('#chatFixTop .fix-top-chip.on').length);
+    q('#fixFilterClear').click(); await sleep(140);
+    rec(c.w, '기간:필터 해제', !q('#chatFixTop .fix-rule'), 'rule=' + !!q('#chatFixTop .fix-rule'));
+  } else {
+    rec(c.w, '기간:규칙 칩', false, '시제 칩 없음');
+  }
+  await goHome(c);
+}
+
 /* ============================================================
  *  실행
  * ============================================================ */
@@ -1958,6 +2226,9 @@ async function run() {
   for (var x2 = 0; x2 < ctxs.length; x2++) await section('v43chunk', ctxs[x2], v43ChunkTests);
   await section('v43rec', deep, v43RecTests);
   await section('v43chat', deep, v43ChatTrendTests);
+  for (var x3 = 0; x3 < ctxs.length; x3++) await section('v44pattern', ctxs[x3], v44PatternTests);
+  await section('v44rec', deep, v44RecTests);
+  await section('v44fix', deep, v44FixTests);
   await section('reset', deep, resetTests);
   rec(deep.w, '콘솔에러 0건', errors.length === 0, errors.slice(0, 5).join(' | '));
   render();

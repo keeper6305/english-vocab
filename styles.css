@@ -1087,12 +1087,44 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fix-trend-t { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
 .fix-trend-t b { color: var(--accent); }
 
+/* ===== v4.4.0 · 교정 기간(7일/30일/전체) · 규칙 미니 추이 ===== */
+.fix-period {
+  display: inline-flex; border: 1px solid var(--line); border-radius: 9px;
+  overflow: hidden; margin: 9px 0 2px;
+}
+.fp-chip {
+  border: 0; background: var(--bg-elev); color: var(--text-dim);
+  font-family: inherit; font-size: 11px; font-weight: 700; padding: 5px 10px; cursor: pointer;
+}
+.fp-chip + .fp-chip { border-left: 1px solid var(--line); }
+.fp-chip.active { background: var(--accent-soft); color: var(--accent); }
+.fix-bars.dense { gap: 1px; }
+.fix-bars.dense i { width: 4px; }
+.fix-rule { display: flex; align-items: flex-end; gap: 7px; margin: 6px 0 0; flex-wrap: wrap; }
+.fix-rule-t { font-size: 10.5px; color: var(--text-dim); line-height: 1.4; }
+.fix-rule-t b { color: var(--accent); }
+.fix-rule .fix-bars { height: 17px; }
+
 /* ===== v4.3.0 · 내 발음 녹음 · 원어민 비교 ===== */
 .chk-rec { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 7px; }
 .chk-rec .ghost-btn { flex: 0 1 auto; padding: 6px 9px; font-size: 11.5px; }
 .chk-rec .rec-btn.rec-on { background: color-mix(in srgb, var(--bad) 16%, var(--bg-elev)); border-color: var(--bad); color: var(--bad); }
 .rec-note { font-size: 10.5px; line-height: 1.35; color: var(--text-dim); word-break: keep-all; }
 .rec-note.rec-off { color: var(--text-soft); }
+.cmp-speed {
+  display: inline-flex; align-items: center; border: 1px solid var(--line);
+  border-radius: 9px; overflow: hidden; flex: 0 0 auto;
+}
+.cmp-speed em {
+  font-style: normal; font-size: 10px; font-weight: 700; color: var(--text-dim);
+  background: var(--bg-soft); padding: 0 6px; align-self: stretch; display: flex; align-items: center;
+}
+.cmp-sp {
+  border: 0; background: var(--bg-elev); color: var(--text-dim);
+  font-family: inherit; font-size: 10.5px; font-weight: 700; padding: 5px 7px; cursor: pointer;
+}
+.cmp-sp + .cmp-sp { border-left: 1px solid var(--line); }
+.cmp-sp.active { background: var(--accent-soft); color: var(--accent); }
 #chatFixDrill { margin-top: 10px; }
 
 .recall-pill {
