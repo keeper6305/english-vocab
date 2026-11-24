@@ -85,11 +85,13 @@ function instrumentTTS(win) {
     }
   } catch (e) {}
 }
+var HEIGHTS = { '360': 780, '390': 844, '430': 932 };
 function mkFrame(w) {
   var f = document.createElement('iframe');
-  f.width = w; f.height = 900;
+  var hh = HEIGHTS[String(w)] || 900;
+  f.width = w; f.height = hh;
   f.style.width = w + 'px';
-  f.style.height = '900px';
+  f.style.height = hh + 'px';
   /* 문서도 매번 새로 받는다 — index.html 이 브라우저 캐시(max-age 600)에 남아 있으면
      그 안의 app.js?v=... 참조까지 예전 것이라, 배포 직후 점검이 옛 코드를 재게 된다 */
   f.src = 'index.html?qa=1&cb=' + Date.now();
