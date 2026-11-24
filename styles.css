@@ -1139,3 +1139,39 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .study-dots i.rcl.ok { background: var(--ok); opacity: 1; }
 .study-dots i.rcl.no { background: var(--bad); opacity: 1; }
 .study-dots i.rcl.cur { background: var(--accent); opacity: .5; }
+
+/* ===== v4.5.0 · 교정 이번 주(월~일) · 전체 월 묶음 · 고친 문장 다시 말하기 · 패턴 현재 문장 ===== */
+/* 기간 칩이 4개 — 360px에서 넘치면 다음 줄로 */
+.fix-period { flex-wrap: wrap; }
+.fp-chip { padding: 5px 9px; }
+#chatFixSay { margin-top: 8px; }
+
+/* 전체 기간의 월 묶음 머리줄 */
+.hmonth {
+  display: flex; align-items: baseline; gap: 6px;
+  margin: 12px 0 0; padding-top: 9px; border-top: 1px solid var(--line);
+  font-size: 11px; font-weight: 800; color: var(--text-dim);
+}
+.hmonth:first-child { margin-top: 4px; }
+.hmonth b { color: var(--text-soft); font-size: 11.5px; }
+.hmonth span { font-weight: 700; }
+
+/* 고친 문장 다시 말하기 */
+.fix-orig { margin: 0 0 5px; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.fix-orig s { color: var(--bad); text-decoration-thickness: 2px; }
+.fix-new {
+  margin: 0 0 10px; font-size: 20px; font-weight: 800; letter-spacing: -.3px;
+  line-height: 1.35; word-break: break-word;
+}
+.fix-new u { color: var(--ok); text-decoration-color: var(--ok); text-underline-offset: 4px; }
+.fix-note { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-soft); }
+.fix-tip { margin: 8px 4px 0; line-height: 1.45; }
+
+/* 패턴 치환 — 칩을 누르면 지금 문장이 바뀐다 */
+.pat-live { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--text-soft); }
+.pat-live span { font-size: 10px; font-weight: 800; color: var(--text-dim); margin-right: 6px; letter-spacing: .2px; }
+.pat-live u { color: var(--accent); text-decoration-color: var(--accent); text-underline-offset: 3px; }
+
+/* 버튼 글자가 단어 중간에서 쪼개지지 않게(360px에서 '리듬 따라 말하기'가 3줄로 갈라짐) */
+.chk-acts .ghost-btn, .speak-tools .ghost-btn, .pat-acts .ghost-btn { white-space: nowrap; }
+.fb-say .ghost-btn { white-space: nowrap; }

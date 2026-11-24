@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="영단어 6000">
-<link rel="stylesheet" href="styles.css?v=4.4.2">
+<link rel="stylesheet" href="styles.css?v=4.5.0">
 </head>
 <body>
 <div id="app">
@@ -395,6 +395,7 @@
           <div id="chatFixTop"></div>
           <div id="chatHistory"></div>
           <button class="ghost-btn wide" id="chatFixDrill" hidden>🔁 고친 표현으로 10문제</button>
+          <button class="ghost-btn wide" id="chatFixSay" hidden>🗣 고친 문장 10개 다시 말하기</button>
         </div>
         <div class="card">
           <h2 class="card-title">실시간 LLM 연결 (선택)</h2>
@@ -419,6 +420,33 @@
           </div>
           <p class="muted small" id="aiState"></p>
         </div>
+      </div>
+
+      <!-- 고친 문장 다시 말하기 (v4.5) -->
+      <div id="fixRun" hidden>
+        <div class="study-bar">
+          <button class="icon-btn back" id="fixExit" aria-label="나가기">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="progress"><span id="fixProg"></span></div>
+          <span class="counter" id="fixCounter">0/0</span>
+        </div>
+        <div class="card speak-card">
+          <p class="quiz-tag" id="fixTag">고친 곳</p>
+          <p class="fix-orig" id="fixOrig"></p>
+          <p class="fix-new" id="fixNew"></p>
+          <div class="chk-slot" id="fixChunks"></div>
+          <div class="speak-tools">
+            <button class="ghost-btn small" id="fixListen">🔊 듣기</button>
+            <button class="ghost-btn small" id="fixSlow">🐢 0.75x</button>
+            <button class="ghost-btn small" id="fixShadow">🎤 따라 말하기</button>
+          </div>
+          <p class="fix-note" id="fixNote" hidden></p>
+        </div>
+        <div class="btn-row">
+          <button class="primary-btn" id="fixNext">다음 문장</button>
+        </div>
+        <p class="fix-tip">고친 문장을 그대로 다시 말해 보세요. 말하기 점수는 이 화면에서만 보이고 저장되지 않아요.</p>
       </div>
 
       <div id="chatRoom" hidden>
@@ -585,7 +613,7 @@
 <script src="data/lv1.js"></script>
 <script src="data/lv5.js"></script>
 <script src="data/meta.js"></script>
-<script src="app.js?v=4.4.2"></script>
+<script src="app.js?v=4.5.0"></script>
 <script>
   // 나머지 레벨은 첫 화면 이후에 받아 둔다 (초기 로딩 1초 유지)
   addEventListener('load', function () {
