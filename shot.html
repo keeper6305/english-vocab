@@ -246,6 +246,87 @@ async function drive(f) {
       const fc3 = cards3.find(x => x.textContent.indexOf('내 문장 기록') > -1);
       if (fc3) fc3.scrollIntoView({ block: 'start' });
       await sleep(300);
+    } else if (state === 'v45week' || state === 'v45month' || state === 'v45dark') {
+      /* 교정 기간 — 이번 주(월~일) / 전체 월 묶음 */
+      if (state === 'v45dark') { q('#themeBtn').click(); await sleep(250); }
+      q('.tab[data-tab="chat"]').click(); await sleep(320);
+      q('#topicGrid .topic[data-t="daily"]').click(); await sleep(320);
+      qa().chatSend('I very like this place. Yesterday I go to the gym.'); await sleep(600);
+      qa().chatSend('He go to school everyday.'); await sleep(600);
+      qa().chatClose(); await sleep(300);
+      const now = Date.now(), D = 86400000, wk = qa().weekStart();
+      qa().seedFixes([
+        { at: Math.max(wk + 3600000, now - 3 * 3600000), text: 'Yesterday I go to the gym.', corrected: 'Yesterday I went to the gym.', notes: [{ from: 'I go', to: 'I went', why: '시제' }] },
+        { at: now - 8 * D, text: 'He go to school everyday.', corrected: 'He goes to school every day.', notes: [{ from: 'He go', to: 'He goes', why: '시제' }, { from: 'everyday', to: 'every day', why: '관사' }] },
+        { at: now - 24 * D, text: 'I am agree with you.', corrected: 'I agree with you.', notes: [{ from: 'I am agree', to: 'I agree', why: '어순' }, { from: 'with you', to: 'with you', why: '전치사' }] },
+        { at: now - 45 * D, text: 'I very like this cafe.', corrected: 'I really like this cafe.', notes: [{ from: 'very like', to: 'really like', why: '부사' }] }
+      ]);
+      await sleep(300);
+      if (state === 'v45month') { const fp0 = q('#chatFixTrend .fp-chip[data-p="0"]'); if (fp0) { fp0.click(); await sleep(320); } }
+      else { const fp1 = q('#chatFixTrend .fp-chip[data-p="-1"]'); if (fp1) { fp1.click(); await sleep(320); } }
+      const cards4 = Array.from(d.querySelectorAll('.card'));
+      const fc4 = cards4.find(x => x.textContent.indexOf('내 문장 기록') > -1);
+      if (fc4) fc4.scrollIntoView({ block: 'start' });
+      await sleep(300);
+    } else if (state === 'v45fixrun') {
+      /* 고친 문장 다시 말하기 — 규칙을 골라 그 문장만 10개 */
+      q('.tab[data-tab="chat"]').click(); await sleep(320);
+      q('#topicGrid .topic[data-t="daily"]').click(); await sleep(320);
+      qa().chatSend('Yesterday I go to the gym with my friend.'); await sleep(600);
+      qa().chatSend('He go to school everyday.'); await sleep(600);
+      qa().chatClose(); await sleep(300);
+      qa().seedFixes([
+        { at: Date.now() - 60000, text: 'Yesterday I go to the gym.', corrected: 'Yesterday I went to the gym.', notes: [{ from: 'I go', to: 'I went', why: '시제' }] },
+        { at: Date.now() - 120000, text: 'He go to school everyday.', corrected: 'He goes to school every day.', notes: [{ from: 'He go', to: 'He goes', why: '시제' }] }
+      ]);
+      await sleep(250);
+      qa().fixFilter('시제'); await sleep(260);
+      const sb = q('#chatFixSay'); if (sb) { sb.click(); await sleep(420); }
+    } else if (state === 'v45echo') {
+      /* 청크 리듬 따라 말하기 — 피드백의 청크 패널 */
+      qa().startConv('blank'); await sleep(380);
+      for (let i = 0; i < 12; i++) {
+        const st = qa().state();
+        if (!st.S || st.S.i >= st.S.queue.length) break;
+        const ok = qa().options().answer;
+        const btns = Array.from(d.querySelectorAll('#blankOptions .opt'));
+        const b = btns.find(x => String(x.dataset.val).toLowerCase() === String(ok).toLowerCase());
+        if (b) b.click(); else break;
+        await sleep(180);
+        if (q('#feedback .chk [data-act="echo"]')) break;
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(150);
+      }
+      await sleep(250);
+      const ec = q('#feedback .chk [data-act="echo"]');
+      if (ec) ec.click();
+      await sleep(400);
+      const ab = q('#feedback .chk-acts');
+      if (ab) ab.scrollIntoView({ block: 'center' });
+      await sleep(250);
+    } else if (state === 'v45patlive') {
+      /* 패턴 치환 — 칩을 누르면 지금 문장이 바뀐다 */
+      qa().startConv('blank'); await sleep(380);
+      for (let i = 0; i < 16; i++) {
+        const st = qa().state();
+        if (!st.S || st.S.i >= st.S.queue.length) break;
+        const card = st.S.queue[st.S.i].c;
+        const pd = qa().pattern(card.w);
+        const ok = qa().options().answer;
+        const btns = Array.from(d.querySelectorAll('#blankOptions .opt'));
+        const b = btns.find(x => String(x.dataset.val).toLowerCase() === String(ok).toLowerCase());
+        if (b) b.click(); else break;
+        await sleep(180);
+        if (pd && pd.tier === 2 && pd.slots.length === 3 && q('#feedback .pat')) break;
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(150);
+      }
+      await sleep(250);
+      const pc = q('#feedback .pat .pat-chip');
+      if (pc) { pc.click(); await sleep(300); }
+      const pb3 = q('#feedback .pat');
+      if (pb3) pb3.scrollIntoView({ block: 'center' });
+      await sleep(250);
     } else if (state === 'dark') {
       q('#themeBtn').click(); await sleep(250);
       q('#startBtn').click(); await sleep(300);

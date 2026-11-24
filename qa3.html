@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>QA v4.4.2 전수 클릭 점검</title>
+<title>QA v4.5.0 전수 클릭 점검</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; margin: 0; padding: 14px; background: #eef0f6; color: #191c2b; }
@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>v4.4.2 전수 클릭 점검 — 2차 틀 사전 102개(칩 239문장)·생성 문장 전수 검사 · 비교 듣기 원어민 1.0x/0.75x · 교정 7일/30일/전체+규칙 미니 추이 · 기존 572항목 · 360/390/430</h1>
+<h1>v4.5.0 전수 클릭 점검 — 2차 틀 사전 146개(칩 283문장)·생성 문장 전수 검사 · 교정 이번 주(월~일)/7일/30일/전체+월 묶음 · 고친 문장 다시 말하기 · 청크 리듬 · 패턴 현재 문장 · 기존 810항목 · 360/390/430</h1>
 <div id="sum">시작 중…</div>
 <pre id="out">…</pre>
 <div class="frames" id="frames"></div>
@@ -26,7 +26,8 @@
  *  - index.html?qa=1 을 360·390px iframe 으로 띄워 실제 DOM 클릭으로 검사
  *  - 결과는 매번 #out 에 즉시 기록 (중간에 페이지가 넘어가도 남게)
  * ============================================================ */
-var WIDTHS = [360, 390, 430];
+var WQ = (location.search.match(/[?&]w=(\d+)/) || [])[1];
+var WIDTHS = WQ ? [Number(WQ)] : [360, 390, 430];
 var out = document.getElementById('out');
 var sum = document.getElementById('sum');
 var checks = [];
@@ -210,7 +211,7 @@ function curCard(c) {
   if (!st || !st.S || st.S.i >= st.S.queue.length) return null;
   return st.S.queue[st.S.i].c;
 }
-async function answerOne(c, ok) {
+async function answerOne(c, ok, keep) {
   var m = modeNow(c);
   var card = curCard(c);
   if (!card) return 'noq';
@@ -262,7 +263,7 @@ async function answerOne(c, ok) {
   }
   await sleep(30);
   var fb = c.q('#feedback');
-  if (fb && !fb.hidden) c.q('#fbNext').click();
+  if (!keep && fb && !fb.hidden) c.q('#fbNext').click();
   await sleep(30);
   return m;
 }
@@ -1710,16 +1711,22 @@ async function v43RecTests(c) {
   var q = c.q, qa = c.win.__QA;
   await goHome(c);
   await startLevel(c, 6, 'blank');
-  var found = false;
+  var found = false, dbg = [];
   for (var t = 0; t < 14 && !found; t++) {
     if (q('#resultBox') && !q('#resultBox').hidden) { await startLevel(c, 6, 'blank'); if (q('#view-study').hidden) break; }
     var card = curCard(c);
     if (!card) break;
-    await answerOne(c, true);
+    /* 피드백을 닫지 않고 연다 — 닫으면 다음 카드로 넘어가 이 카드의 .chk 를 볼 수 없다 */
+    await answerOne(c, true, true);
     await sleep(70);
     /* 숨겨진 이전 카드의 피드백 잔여물(.chk)이 남아 있을 수 있으니 '보이는' 패널만 본다 */
-    if (!q('#feedback') || q('#feedback').hidden || !q('#feedback .chk')) continue;
+    if (!q('#feedback') || q('#feedback').hidden || !q('#feedback .chk')) {
+      dbg.push((card.w || '?').slice(0, 20) + (q('#feedback') && !q('#feedback').hidden ? '-' : 'x'));
+      if (q('#feedback') && !q('#feedback').hidden && q('#fbNext')) { q('#fbNext').click(); await sleep(40); }
+      continue;
+    }
     found = true;
+    dbg.push((card.w || '?').slice(0, 20) + '+');
     rec(c.w, '녹음:패널 행', !!q('#feedback .chk-rec'), 'ok');
     var rs = qa.recState();
     rec(c.w, '녹음:처음 상태', rs.box === true && rs.mineHidden === true && rs.cmpHidden === true && rs.note === '',
@@ -1764,7 +1771,7 @@ async function v43RecTests(c) {
       'again=' + again + ' state=' + rs3.state + ' note=' + rs3.note.slice(0, 16) + ' mine=' + rs3.mineHidden + ' url=' + rs3.url);
     await leaveStudy(c);
   }
-  rec(c.w, '녹음:패널 확인', found, found ? 'ok' : '없음');
+  rec(c.w, '녹음:패널 확인', found, found ? 'ok' : ('없음 · mode=' + modeNow(c) + ' · ' + dbg.join(' ')));
   await leaveStudy(c);
 }
 
@@ -1809,6 +1816,226 @@ async function v43ChatTrendTests(c) {
     rec(c.w, '교정필터:전체 보기', doc.querySelectorAll('#chatHistory .hrow').length === rowsBefore && !q('#chatFixTop .fix-filter'), '');
     rec(c.w, '교정필터:드릴 버튼 유지', !q('#chatFixDrill').hidden && q('#chatFixDrill').textContent.indexOf('10문제') > -1, q('#chatFixDrill').textContent);
   }
+}
+
+
+/* ============================================================
+ *  v4.5 — 교정 '이번 주'(월~일)·전체 월 묶음 · 고친 문장 다시 말하기 ·
+ *         청크 리듬(한 청크 듣고 따라 말하기) · 패턴 현재 문장 · 새 틀 44개
+ * ============================================================ */
+async function v45PeriodTests(c) {
+  var q = c.q, qa = c.win.__QA, doc = c.doc;
+  q('.tab[data-tab="chat"]').click(); await sleep(160);
+  var now = Date.now(), H = 3600000, D = 86400000;
+  var wk = qa.weekStart();
+  var inWeek = Math.min(now - 60000, Math.max(wk + H, now - 2 * H));
+  var mid = new Date(); mid.setHours(0, 0, 0, 0);
+  var t0 = mid.getTime();
+  qa.seedFixes([
+    { at: inWeek, text: 'I go there yesterday.', corrected: 'I went there yesterday.', notes: [{ from: 'go', to: 'went', why: '시제' }] },
+    { at: now - 8 * D, notes: [{ from: 'a', to: 'b', why: '시제' }, { from: 'c', to: 'd', why: '관사' }] },
+    { at: now - 40 * D, text: 'I very like this place.', corrected: 'I really like this place.', notes: [{ from: 'very', to: 'really', why: '부사' }, { from: 'g', to: 'h', why: '시제' }, { from: 'i', to: 'j', why: '어순' }] }
+  ]);
+  await sleep(160);
+
+  var chips = Array.prototype.slice.call(doc.querySelectorAll('#chatFixTrend .fp-chip'));
+  rec(c.w, '주간:기간 칩 4개', chips.length === 4, 'n=' + chips.length);
+  rec(c.w, '주간:칩 이름', chips.map(function (b) { return b.textContent; }).join('/') === '이번 주/7일/30일/전체',
+    chips.map(function (b) { return b.textContent; }).join('/'));
+  rec(c.w, '주간:칩 가로 한 줄 안', chips.length === 4 && chips[3].getBoundingClientRect().right <= doc.documentElement.clientWidth,
+    chips.length ? Math.round(chips[3].getBoundingClientRect().right) + '/' + doc.documentElement.clientWidth : 'none');
+
+  chips[0].click(); await sleep(180);
+  var fx = qa.fixStats();
+  var turns = qa.fixTurns();
+  function cnt(a, b) { var s = 0; turns.forEach(function (t) { if (t.at >= a && t.at < b) s += t.n; }); return s; }
+  function recs(a, b) { var n = 0; turns.forEach(function (t) { if (t.at >= a && t.at < b) n++; }); return n; }
+  var elapsed = Date.now() - wk;
+  rec(c.w, '주간:기간 -1', fx.p === -1 && qa.fixPeriod() === -1, 'p=' + fx.p);
+  rec(c.w, '주간:이번 주 집계=원자료', fx.pn === cnt(wk, now + 1000), 'pn=' + fx.pn + ' raw=' + cnt(wk, now + 1000));
+  rec(c.w, '주간:이번 주=pn', fx.thisWeek === fx.pn, fx.thisWeek + ' vs ' + fx.pn);
+  rec(c.w, '주간:지난주 같은 때=원자료', fx.lastWeekSame === cnt(wk - 7 * D, wk - 7 * D + elapsed),
+    'last=' + fx.lastWeekSame + ' raw=' + cnt(wk - 7 * D, wk - 7 * D + elapsed));
+  rec(c.w, '주간:비교도 같은 시점', fx.pprev === fx.lastWeekSame, 'pprev=' + fx.pprev + ' last=' + fx.lastWeekSame);
+  var titles = Array.prototype.map.call(doc.querySelectorAll('#chatFixTrend .fix-bars i'), function (el) { return el.title; });
+  rec(c.w, '주간:막대 7칸', titles.length === 7, 'n=' + titles.length);
+  rec(c.w, '주간:막대 월~일', titles.length === 7 && /\(월\)/.test(titles[0]) && /\(일\)/.test(titles[6]), titles.join(' | '));
+  rec(c.w, '주간:막대 합=집계', fx.series.reduce(function (a, d) { return a + d.n; }, 0) === fx.pn,
+    fx.series.map(function (d) { return d.n; }).join(',') + ' vs ' + fx.pn);
+  var wd = (new Date().getDay() + 6) % 7;
+  rec(c.w, '주간:오늘 칸 위치', fx.todayIdx === wd, 'idx=' + fx.todayIdx + ' 기대=' + wd);
+  rec(c.w, '주간:오늘 막대 1개', doc.querySelectorAll('#chatFixTrend .fix-bars i.today').length === 1 &&
+    doc.querySelectorAll('#chatFixTrend .fix-bars i')[fx.todayIdx].classList.contains('today'), '');
+  rec(c.w, '주간:오늘 막대=오늘 기록', fx.series[fx.todayIdx].n === cnt(t0, now + 1000),
+    fx.series[fx.todayIdx].n + ' vs ' + cnt(t0, now + 1000));
+  var tt = q('#chatFixTrend .fix-trend-t') ? q('#chatFixTrend .fix-trend-t').textContent : '';
+  rec(c.w, '주간:문구', tt.indexOf('이번 주') > -1 && tt.indexOf('지난주 같은 때') > -1 && tt.indexOf(String(fx.pn)) > -1, tt);
+  var rows = doc.querySelectorAll('#chatHistory .hrow').length;
+  var allWeek = qa.chatMeAt().filter(function (t) { return t >= wk && t <= now + 1000; }).length;
+  rec(c.w, '주간:기록도 이번 주만', rows === Math.min(30, allWeek) && rows >= recs(wk, now + 1000),
+    'rows=' + rows + ' 이번주 문장=' + allWeek + ' 교정=' + recs(wk, now + 1000));
+  rec(c.w, '주간:7일 칩과 구분', !!doc.querySelector('#chatFixTrend .fp-chip.active[data-p="-1"]'), '');
+  boxScan(c, 'chat-week');
+
+  /* 전체 — 월 단위 묶음 */
+  doc.querySelector('#chatFixTrend .fp-chip[data-p="0"]').click(); await sleep(200);
+  var hm = Array.prototype.slice.call(doc.querySelectorAll('#chatHistory .hmonth'));
+  var thisM = (new Date()).getFullYear() + '.' + ('0' + ((new Date()).getMonth() + 1)).slice(-2);
+  rec(c.w, '월묶음:두 달 이상', hm.length >= 2, 'n=' + hm.length);
+  rec(c.w, '월묶음:머리글 형식', hm.length > 0 && /^\d{4}\.\d{2}$/.test(hm[0].querySelector('b').textContent),
+    hm.length ? hm[0].textContent : 'none');
+  rec(c.w, '월묶음:최신 달이 먼저', hm.length > 0 && hm[0].querySelector('b').textContent === thisM,
+    hm.length ? hm[0].querySelector('b').textContent + ' vs ' + thisM : 'none');
+  rec(c.w, '월묶음:건수 표시', hm.length > 0 && /\d+건/.test(hm[0].textContent), hm.length ? hm[0].textContent : 'none');
+  rec(c.w, '월묶음:행이 머리글 아래', !!(q('#chatHistory').firstElementChild && q('#chatHistory').firstElementChild.classList.contains('hmonth')),
+    q('#chatHistory').firstElementChild ? q('#chatHistory').firstElementChild.className : 'none');
+  rec(c.w, '월묶음:머리글 수 ≤ 달 수', hm.length <= 3, 'n=' + hm.length);
+  boxScan(c, 'chat-months');
+  doc.querySelector('#chatFixTrend .fp-chip[data-p="7"]').click(); await sleep(180);
+  rec(c.w, '월묶음:7일엔 머리글 없음', doc.querySelectorAll('#chatHistory .hmonth').length === 0, '');
+  await goHome(c);
+}
+
+async function v45FixRunTests(c) {
+  var q = c.q, qa = c.win.__QA, doc = c.doc;
+  q('.tab[data-tab="chat"]').click(); await sleep(160);
+  qa.fixPeriod(-1);
+  qa.seedFixes([
+    { at: Date.now() - 2000, text: 'I go to the store yesterday.', corrected: 'I went to the store yesterday.', notes: [{ from: 'go', to: 'went', why: '시제' }] },
+    { at: Date.now() - 3000, text: 'He go to school everyday.', corrected: 'He goes to school every day.', notes: [{ from: 'go', to: 'goes', why: '시제' }] }
+  ]);
+  await sleep(160);
+  qa.fixFilter('시제'); await sleep(180);
+  var items = qa.fixSayItems();
+  rec(c.w, '다시말:규칙 문장만', items.length >= 2 && items.every(function (x) { return x.why === '시제'; }),
+    items.map(function (x) { return x.why; }).join(','));
+  rec(c.w, '다시말:최대 10문장', items.length <= 10, 'n=' + items.length);
+  var btn = q('#chatFixSay');
+  rec(c.w, '다시말:버튼 노출', !!btn && !btn.hidden && btn.textContent.indexOf('다시 말하기') > -1 && btn.textContent.indexOf('시제') > -1,
+    btn ? btn.textContent : 'none');
+  btn.click(); await sleep(220);
+  var st = qa.fixRunState();
+  rec(c.w, '다시말:시작', !!st && !q('#fixRun').hidden && q('#tabbar').hidden && !q('#view-chat').hidden, JSON.stringify(st));
+  rec(c.w, '다시말:카운터 1/n', !!st && st.counter === '1/' + st.n, st ? st.counter : 'none');
+  rec(c.w, '다시말:규칙 표시', !!st && st.tag.indexOf('시제') > -1, st ? st.tag : 'none');
+  var u = q('#fixNew u');
+  rec(c.w, '다시말:고친 부분 밑줄', !!u && /^(went|goes)$/.test(u.textContent), u ? u.textContent : 'none');
+  var s1 = q('#fixOrig s');
+  rec(c.w, '다시말:내 말 지우기', !!s1 && /^(go)$/.test(s1.textContent), s1 ? s1.textContent : 'none');
+  rec(c.w, '다시말:고친 문장 전체', normSent(q('#fixNew').textContent) === normSent('I went to the store yesterday.'),
+    q('#fixNew').textContent);
+  rec(c.w, '다시말:청크 패널', st && st.chunks >= 2, st ? 'chunks=' + st.chunks : 'none');
+  rec(c.w, '다시말:청크 리듬 버튼', !!q('#fixChunks [data-act="echo"]'), '');
+  var sp0 = spokenList(c).length;
+  q('#fixListen').click(); await sleep(200);
+  var sp = spokenList(c);
+  rec(c.w, '다시말:듣기 TTS', sp.length > sp0 && normSent(sp[sp.length - 1].text) === normSent('I went to the store yesterday.'),
+    sp.length ? sp[sp.length - 1].text : 'none');
+  rec(c.w, '다시말:마치기/다음 라벨', !!st && (st.next === '다음 문장' || st.next === '마치기'), st ? st.next : 'none');
+  q('#fixNext').click(); await sleep(150);
+  var st2 = qa.fixRunState();
+  rec(c.w, '다시말:다음 문장', !!st2 && (st2.i === 1 || st2.n === 1) && (st2.counter === '2/' + st2.n || st2.next === '마치기'),
+    JSON.stringify(st2));
+  var guard = 0;
+  while (!q('#fixRun').hidden && guard < 16) { q('#fixNext').click(); await sleep(120); guard++; }
+  rec(c.w, '다시말:끝나면 채팅으로', q('#fixRun').hidden && !q('#tabbar').hidden && !q('#view-chat').hidden,
+    'hidden=' + q('#fixRun').hidden + ' tabbar=' + q('#tabbar').hidden);
+  boxScan(c, 'chat-after-fixrun');
+  /* 뒤로가기 — 실행 중 1회면 닫힌다 */
+  q('#chatFixSay').click(); await sleep(180);
+  rec(c.w, '다시말:다시 열림', !q('#fixRun').hidden, '');
+  backEvent(c); await sleep(250);
+  rec(c.w, '다시말:뒤로가기로 닫기', q('#fixRun').hidden && !q('#tabbar').hidden, 'hidden=' + q('#fixRun').hidden);
+  qa.fixFilter(''); await sleep(160);
+  var btn2 = q('#chatFixSay');
+  rec(c.w, '다시말:규칙 없을 때 라벨', !!btn2 && btn2.textContent.indexOf('고친') > -1, btn2 ? btn2.textContent : 'none');
+  boxScan(c, 'chat-fixsay');
+  qa.fixPeriod(7);
+  await goHome(c);
+}
+
+async function v45ChunkTests(c) {
+  var q = c.q, qa = c.win.__QA;
+  await goHome(c);
+  var m = qa.chunkMount('Could I get some more water?');
+  rec(c.w, '리듬:버튼·청크', !!m && m.echo && m.chips === 2 && m.echoLabel.indexOf('리듬') > -1,
+    m ? 'chips=' + m.chips + ' ' + m.echoLabel : 'none');
+  var b4 = spokenList(c).length;
+  q('#qaChunkMount [data-act="echo"]').click();
+  await sleep(400);
+  var on = q('#qaChunkMount [data-act="echo"]').classList.contains('on');
+  rec(c.w, '리듬:시작 표시', on && q('#qaChunkMount [data-act="echo"]').textContent.indexOf('멈추기') > -1,
+    q('#qaChunkMount [data-act="echo"]').textContent);
+  await sleep(3400);
+  var sp = spokenList(c).slice(b4).map(function (x) { return x.text; });
+  rec(c.w, '리듬:청크 순서대로 재생', sp.length >= 2 && normSent(sp[0]) === normSent('Could I get') && normSent(sp[1]) === normSent('some more water?'),
+    sp.join(' | '));
+  rec(c.w, '리듬:끝나면 라벨 복귀', q('#qaChunkMount [data-act="echo"]').textContent.indexOf('리듬') > -1 &&
+    !q('#qaChunkMount [data-act="echo"]').classList.contains('on'), q('#qaChunkMount [data-act="echo"]').textContent);
+  /* 다시 눌러 멈추기 */
+  q('#qaChunkMount [data-act="echo"]').click(); await sleep(500);
+  var on2 = q('#qaChunkMount [data-act="echo"]').classList.contains('on');
+  q('#qaChunkMount [data-act="echo"]').click(); await sleep(150);
+  var n1 = spokenList(c).length;
+  await sleep(1800);
+  rec(c.w, '리듬:다시 눌러 멈춤', on2 && !q('#qaChunkMount [data-act="echo"]').classList.contains('on') && spokenList(c).length === n1,
+    'spoken ' + n1 + '→' + spokenList(c).length);
+  rec(c.w, '리듬:칩 강조 해제', c.doc.querySelectorAll('#qaChunkMount .chk-chip.on').length === 0, '');
+  boxScan(c, 'chunk-echo');
+  qa.chunkUnmount();
+}
+
+async function v45PatLiveTests(c) {
+  var qa = c.win.__QA, q = c.q;
+  var card = 'Could you forward that to me?';
+  var p0 = qa.pattern(card);
+  var m = qa.patMount(card);
+  function liveText(el) { return el ? String(el.textContent || '').replace(/^\s*지금 문장\s*/, '') : ''; }
+  var live = q('#qaPatMount .pat-live');
+  rec(c.w, '패턴:현재 문장 기본', !!live && normSent(liveText(live)) === normSent(p0.frame.replace('___', p0.base)),
+    (live ? liveText(live) : 'none') + ' / 기대 ' + p0.frame.replace('___', p0.base));
+  qa.patChipClick(1); await sleep(160);
+  var live2 = q('#qaPatMount .pat-live');
+  var exp = m.frame.replace('___', m.slots[1]);
+  rec(c.w, '패턴:칩 → 현재 문장', !!live2 && normSent(liveText(live2)) === normSent(exp),
+    (live2 ? liveText(live2) : 'none') + ' / 기대 ' + exp);
+  var u = live2 ? live2.querySelector('u') : null;
+  rec(c.w, '패턴:바꾼 자리 강조', !!u && normSent(u.textContent) === normSent(m.slots[1]), u ? u.textContent : 'none');
+  var spk = spokenList(c).slice(-1)[0] || { text: '' };
+  rec(c.w, '패턴:문장도 재생', normSent(spk.text) === normSent(exp), spk.text);
+  boxScan(c, 'pattern-live');
+  qa.patUnmount();
+}
+
+async function v45PatternTests(c) {
+  var qa = c.win.__QA;
+  var b1 = qa.patternBank1(), b2 = qa.patternBank2();
+  var k2 = Object.keys(b2);
+  rec(c.w, '틀5:사전 146개', k2.length === 146, 'n=' + k2.length);
+  var all = qa.patternAll();
+  var elig = all.filter(function (x) { return x.frame; });
+  rec(c.w, '틀5:치환 가능 283', elig.length === 283, elig.length + '/' + all.length);
+  var frames = {};
+  elig.forEach(function (x) { frames[x.frame.toLowerCase().replace(/\s+/g, ' ').trim()] = 1; });
+  rec(c.w, '틀5:틀 234개', Object.keys(frames).length === 234, 'frames=' + Object.keys(frames).length);
+  var dead = k2.filter(function (k) { return !frames[k]; });
+  rec(c.w, '틀5:죽은 항목 0', dead.length === 0, dead.slice(0, 3).join(' , '));
+  var clash = k2.filter(function (k) { return !!b1[k]; });
+  rec(c.w, '틀5:1차와 겹침 0', clash.length === 0, clash.slice(0, 3).join(' , '));
+  var noBank = Object.keys(frames).filter(function (f) { return !b1[f] && !b2[f]; });
+  rec(c.w, '틀5:모든 틀에 사전', noBank.length === 0, noBank.slice(0, 3).join(' , '));
+  var p1 = qa.pattern('Could you speak up a little?');
+  rec(c.w, '틀5:부탁 틀(Could you ___ a little?)', !!p1 && p1.frame === 'Could you ___ a little?' && p1.slots.indexOf('speak up') > -1,
+    p1 ? p1.frame + ' · ' + p1.slots.join(' / ') : 'none');
+  var p2 = qa.pattern('Would you mind not doing that?');
+  rec(c.w, '틀5:정중 거절 틀', !!p2 && p2.frame === 'Would you ___ that?' && p2.slots.length === 3,
+    p2 ? p2.frame + ' · ' + p2.slots.join(' / ') : 'none');
+  var p3 = qa.pattern('Do you have time for a quick coffee?');
+  rec(c.w, '틀5:약속 잡기 틀', !!p3 && p3.frame === 'Do you have ___ a quick coffee?' && p3.slots.length === 2,
+    p3 ? p3.frame + ' · ' + p3.slots.join(' / ') : 'none');
+  var p4 = all.filter(function (x) { return x.frame === 'I see ___.'; })[0];
+  rec(c.w, '틀5:공감 틀', !!p4 && p4.slots.indexOf('your point') > -1 && p4.slots.indexOf('what you mean') > -1,
+    p4 ? p4.frame + ' · ' + p4.slots.join(' / ') : 'none');
 }
 
 async function resetTests(c) {
@@ -1922,6 +2149,8 @@ async function sGradeTests(c) {
 /* ============================================================
  *  Y. v4.4.0 — 2차 틀 사전(조동사+주어) · 비교 듣기 원어민 속도 · 교정 기간 7/30/전체
  * ============================================================ */
+function spokenList(c) { return (c.win.__spoken || []).slice(); }
+
 function normSent(t) {
   return String(t == null ? '' : t).toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -1930,15 +2159,15 @@ async function v44PatternTests(c) {
   var qa = c.win.__QA;
   var b1 = qa.patternBank1(), b2 = qa.patternBank2();
   var k1 = Object.keys(b1), k2 = Object.keys(b2);
-  rec(c.w, '틀2:사전 102개', k2.length === 102, 'n=' + k2.length);
+  rec(c.w, '틀2:사전 146개', k2.length === 146, 'n=' + k2.length);
   var all = qa.patternAll();
   var elig = all.filter(function (x) { return x.frame; });
   var chips = elig.filter(function (x) { return x.slots.length; });
   var frames = {};
   elig.forEach(function (x) { frames[x.frame.toLowerCase().replace(/\s+/g, ' ').trim()] = 1; });
-  rec(c.w, '틀2:치환 가능 문장 239', elig.length === 239, 'eligible=' + elig.length + '/' + all.length);
+  rec(c.w, '틀2:치환 가능 문장 283', elig.length === 283, 'eligible=' + elig.length + '/' + all.length);
   rec(c.w, '틀2:전 문장 칩', chips.length === elig.length, chips.length + '/' + elig.length);
-  rec(c.w, '틀2:틀 190개', Object.keys(frames).length === 190, 'frames=' + Object.keys(frames).length);
+  rec(c.w, '틀2:틀 234개', Object.keys(frames).length === 234, 'frames=' + Object.keys(frames).length);
   var noBank = Object.keys(frames).filter(function (f) { return !b1[f] && !b2[f]; });
   rec(c.w, '틀2:모든 틀에 사전', noBank.length === 0, '없음=' + noBank.length + (noBank.length ? ' [' + noBank.slice(0, 3).join(' , ') + ']' : ''));
   var dead = k2.filter(function (k) { return !frames[k]; });
@@ -2120,7 +2349,7 @@ async function v44FixTests(c) {
   ]);
   await sleep(120);
   var chips7 = doc.querySelectorAll('#chatFixTrend .fp-chip');
-  rec(c.w, '기간:칩 3개', chips7.length === 3, 'n=' + chips7.length);
+  rec(c.w, '기간:칩 4개', chips7.length === 4, 'n=' + chips7.length);
   rec(c.w, '기간:기본 7일', qa.fixPeriod() === 7 && !!doc.querySelector('#chatFixTrend .fp-chip.active[data-p="7"]'),
     'period=' + qa.fixPeriod());
 
@@ -2229,6 +2458,11 @@ async function run() {
   for (var x3 = 0; x3 < ctxs.length; x3++) await section('v44pattern', ctxs[x3], v44PatternTests);
   await section('v44rec', deep, v44RecTests);
   await section('v44fix', deep, v44FixTests);
+  for (var x4 = 0; x4 < ctxs.length; x4++) await section('v45pattern', ctxs[x4], v45PatternTests);
+  for (var x5 = 0; x5 < ctxs.length; x5++) await section('v45period', ctxs[x5], v45PeriodTests);
+  for (var x6 = 0; x6 < ctxs.length; x6++) await section('v45patlive', ctxs[x6], v45PatLiveTests);
+  await section('v45fixrun', deep, v45FixRunTests);
+  await section('v45chunk', deep, v45ChunkTests);
   await section('reset', deep, resetTests);
   rec(deep.w, '콘솔에러 0건', errors.length === 0, errors.slice(0, 5).join(' | '));
   render();
