@@ -1566,7 +1566,8 @@ async function v42ChatFixTests(c) {
   qa.chatClose(); await sleep(180);
   var st = qa.fixStats();
   rec(c.w, '교정통계:집계', st.all >= 2 && st.today >= 2, 'today=' + st.today + ' all=' + st.all);
-  rec(c.w, '교정통계:오늘·누적 문구', q('#chatStats').textContent.indexOf('오늘 ' + st.today + '곳') > -1 &&
+  rec(c.w, '교정통계:오늘·누적 문구', q('#chatStats').textContent.indexOf('고친 곳 오늘 ' + st.today) > -1 &&
+    q('#chatStats').textContent.indexOf('이번 주 ' + st.thisWeek) > -1 &&
     q('#chatStats').textContent.indexOf('누적 ' + st.all + '곳') > -1, q('#chatStats').textContent);
   var tops = doc.querySelectorAll('#chatFixTop .fix-top-chip');
   rec(c.w, '교정통계:자주 고친 곳', tops.length >= 1 && /[0-9]/.test(tops[0].textContent),
@@ -1791,7 +1792,7 @@ async function v43ChatTrendTests(c) {
   rec(c.w, '교정추이:7일 집계', typeof fx.week === 'number' && fx.week >= fx.today && fx.week7.length === 7,
     'week=' + fx.week + ' today=' + fx.today + ' prev=' + fx.prevWeek);
   rec(c.w, '교정추이:막대 합=7일', sum === fx.week, sum + ' vs ' + fx.week + ' [' + fx.week7.map(function (d) { return d.n; }).join(',') + ']');
-  rec(c.w, '교정추이:문구', q('#chatStats').textContent.indexOf('최근 7일 ' + fx.week + '곳') > -1, q('#chatStats').textContent);
+  rec(c.w, '교정추이:문구', q('#chatStats').textContent.indexOf('최근 7일 ' + fx.week) > -1, q('#chatStats').textContent);
   rec(c.w, '교정추이:막대 7칸', doc.querySelectorAll('#chatFixTrend .fix-bars i').length === 7,
     'n=' + doc.querySelectorAll('#chatFixTrend .fix-bars i').length);
   rec(c.w, '교정추이:지난주 대비 문구', /지난 7일/.test(q('#chatFixTrend').textContent), q('#chatFixTrend').textContent.slice(0, 44));

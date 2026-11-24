@@ -4174,7 +4174,7 @@
     nextCard();
   }
 
-  /* 고친 문장 다시 말하기 — 자주 틀린 규칙(칩)을 골랐을 때 그 문장들만 모아 최대 10문장을
+  /* 고친 문장 다시 말하기 — 자주 틀린 규칙(칩)을 골랐을 때 그 문장들만 모아(문장 단위, 최대 10개) 
      고친 그 자리에서 다시 말해 보는 라운드. 새로 저장하는 것은 없다(회화 기록 turns만 읽는다).
      Speak의 '대화 뒤 틀린 곳이 바로 다음 연습이 된다' 구조를 우리 기록에 옮긴 것. */
   function fixSayItems(limit) {
@@ -4196,7 +4196,7 @@
         if (!en) return;
         notes.forEach(function (n) {
           if (chatRuleFilter && (n.why || ((n.from || '') + ' → ' + (n.to || ''))) !== chatRuleFilter) return;
-          var k = en.toLowerCase() + '|' + String(n.to || '').toLowerCase();
+          var k = en.toLowerCase();     /* 같은 문장이 여러 번 나오지 않게 — 문장 단위로 한 번 */
           if (seen[k]) return;
           seen[k] = 1;
           out.push({ en: en, orig: String(m.text || ''), from: String(n.from || ''), to: String(n.to || ''), why: String(n.why || '고친 곳'), at: m.at || 0 });
@@ -4302,7 +4302,7 @@
     if (st) {
       var n = chatHistoryCount();
       st.textContent = n
-        ? '내가 말한 문장 ' + n + '개 · 오늘 ' + fx.today + '곳 · 이번 주 ' + fx.thisWeek + '곳 · 최근 7일 ' + fx.week + '곳 · 누적 ' + fx.all + '곳을 고쳤어요.'
+        ? '내가 말한 문장 ' + n + '개 · 고친 곳 오늘 ' + fx.today + ' · 이번 주 ' + fx.thisWeek + ' · 최근 7일 ' + fx.week + ' · 누적 ' + fx.all + '곳'
         : '아직 기록이 없어요. 주제를 골라 한마디만 해도 쌓입니다.';
     }
     /* 기간 추이 — 이번 주(월~일)/7일/30일/전체 막대 + 지난 기간 대비 */
