@@ -4467,7 +4467,8 @@
         var todayStr = todayKey();
         var barsHtml = fx.series.map(function (d, i) {
           var inner = '<i class="' + (i === fx.todayIdx ? 'today' : '') + (d.n ? '' : ' zero') +
-            '" style="height:' + (4 + Math.round(d.n / max * 18)) + 'px" title="' + escapeHtml(d.label) + ' · ' + d.n + '곳"></i>';
+            '" style="height:' + (wkView ? 6 + Math.round(d.n / max * 28) : 4 + Math.round(d.n / max * 18)) +
+            'px" title="' + escapeHtml(d.label) + ' · ' + d.n + '곳"></i>';
           if (!wkView) return inner;
           var on = chatFixDay === d.key;
           var fut = d.key > todayStr;
@@ -4484,7 +4485,7 @@
             return '<button class="fp-chip' + (x === fx.p ? ' active' : '') + '" data-p="' + x + '">' +
               (x === 0 ? '전체' : x === -1 ? '이번 주' : x + '일') + '</button>';
           }).join('') + '</div>' +
-          '<div class="fix-trend' + (dense ? ' dense' : '') + '">' +
+          '<div class="fix-trend' + (dense ? ' dense' : '') + (wkView ? ' wk' : '') + '">' +
           '<div class="fix-bars' + (dense ? ' dense' : '') + (wkView ? ' wk' : '') + '" aria-label="' + fixPeriodLabel(fx.p) + ' 교정 추이">' + barsHtml + '</div>' +
           '<span class="fix-trend-t">' + trendTxt + '</span></div>' +
           (dayOn ? '<p class="fix-filter">🗓 ' + fx.dayLabel + ' 기록만 보는 중' +

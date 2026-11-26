@@ -1106,7 +1106,11 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fix-bars.dense i { width: 4px; }
 
 /* ===== v4.6 · '이번 주' 막대 칸(누르면 그날만) · 기록 한 줄 다시 말하기 ===== */
-.fix-bars.wk { gap: 2px; }
+/* 이번 주는 7칸이 전폭을 나눠 가져 손가락으로 누를 수 있게(≈40×40), 안내 문구는 아래 줄로 */
+.fix-bars.wk { flex: 1 1 100%; gap: 3px; height: 42px; }
+.fix-trend.wk { row-gap: 5px; }
+.fix-bars.wk .fix-day { flex: 1 1 0; width: auto; min-width: 30px; }
+.fix-bars.wk .fix-day i { width: 100%; max-width: 26px; }
 .fix-day {
   display: flex; align-items: flex-end; justify-content: center;
   width: 15px; height: 100%; padding: 0; border: 0; background: none;

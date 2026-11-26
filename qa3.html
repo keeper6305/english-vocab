@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<h1>v4.6.1 전수 클릭 점검 — 2차 틀 사전 226개(칩 363문장)·생성 문장 전수 검사 · 교정 규칙 다중 선택 · 이번 주 막대 칸(그날만) · 기록 한 줄 다시 말하기 · 이번 주/7일/30일/전체+월 묶음 · 고친 문장 다시 말하기 · 청크 리듬 · 패턴 현재 문장 · 전체 1,083항목 · 360/390/430</h1>
+<h1>v4.6.1 전수 클릭 점검 — 2차 틀 사전 226개(칩 363문장)·생성 문장 전수 검사 · 교정 규칙 다중 선택 · 이번 주 막대 칸(그날만) · 기록 한 줄 다시 말하기 · 이번 주/7일/30일/전체+월 묶음 · 고친 문장 다시 말하기 · 청크 리듬 · 패턴 현재 문장 · 전체 1,085항목 · 360/390/430</h1>
 <div id="sum">시작 중…</div>
 <pre id="out">…</pre>
 <div class="frames" id="frames"></div>
@@ -2215,6 +2215,16 @@ async function v46DayTests(c) {
   rec(c.w, '날칸:오늘 칸 data-d', days[wd] && days[wd].dataset.d === today, days[wd] ? days[wd].dataset.d + ' vs ' + today : 'none');
   var fut = days.filter(function (b) { return b.classList.contains('fut'); }).length;
   rec(c.w, '날칸:앞으로 올 날은 흐리게', fut === 6 - wd, 'fut=' + fut + ' 기대=' + (6 - wd));
+  /* 손가락으로 누를 수 있는 크기·안내 문구는 아래 줄(전폭 막대) */
+  var rr = days.map(function (b) { return b.getBoundingClientRect(); });
+  var minW = Math.min.apply(null, rr.map(function (r) { return r.width; }));
+  var minH = Math.min.apply(null, rr.map(function (r) { return r.height; }));
+  rec(c.w, '날칸:누를 수 있는 크기', minW >= 30 && minH >= 36, '최소 ' + Math.round(minW) + '×' + Math.round(minH));
+  var barsR = doc.querySelector('#chatFixTrend .fix-bars.wk').getBoundingClientRect();
+  var txtR = doc.querySelector('#chatFixTrend .fix-trend-t').getBoundingClientRect();
+  rec(c.w, '날칸:안내 문구는 아래 줄', txtR.top >= barsR.bottom - 1 && Math.abs(txtR.width - barsR.width) < 2,
+    'bars ' + Math.round(barsR.width) + 'x' + Math.round(barsR.height) + ' · text top=' + Math.round(txtR.top) +
+    ' bottom=' + Math.round(barsR.bottom) + ' w=' + Math.round(txtR.width));
   rec(c.w, '날칸:처음엔 고른 칸 없음', qa.fixDay() === '' && qa.fixStats().dayN == null, 'day=' + qa.fixDay());
 
   function dayNow(i) { return doc.querySelectorAll('#chatFixTrend .fix-day')[i == null ? wd : i]; }
