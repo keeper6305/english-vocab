@@ -14,6 +14,8 @@
  * - v4.5: 교정 '이번 주(월~일)' 보기 + 전체 월 묶음 · 자주 고친 규칙으로 내 문장 다시 말하기 ·
  *         2차 틀 사전 36개 보강(요청·약속·여행·진료) · 청크 리듬(한 청크 듣고 따라 말하기) ·
  *         패턴 치환에 현재 문장 표시
+ * - v4.6: 교정 규칙 다중 선택(두 규칙을 함께 골라 한 세트로) · '이번 주' 막대 칸 터치로 그날만 보기 ·
+ *         기록 한 줄에서 그 문장만 다시 말하기 · 2차 틀 사전 80개 보강(칩 283 → 363/412)
  */
 (function () {
   'use strict';
@@ -796,8 +798,8 @@
     "you're ___.": ["on mute", "breaking up", "cutting out"]
   };
 
-  /* 2차 사전(v4.4 → v4.5) — 1차의 동사·be·to 규칙으로는 틀을 못 잡는 '조동사+주어' 요청문과
-     핵심 빈출 문형 102 → 147개. 카드 문장의 빈칸 앞이 조동사+주어(Could you ___?)면 자리에는
+  /* 2차 사전(v4.4 → v4.5 → v4.6) — 1차의 동사·be·to 규칙으로는 틀을 못 잡는 '조동사+주어' 요청문과
+     핵심 빈출 문형 102 → 146 → 226개. 카드 문장의 빈칸 앞이 조동사+주어(Could you ___?)면 자리에는
      서술어가 오므로, 규칙 추론 대신 사람이 슬롯을 하나씩 골라 검수했다(문맥까지 확인).
      생성 문장은 관사 a/an·구두점·인접 중복·프레임 겹침·길이를 스크립트로 전수 검사했고,
      틀은 카드 문장에 실제로 있는 것만 넣었다(죽은 항목 0).
@@ -952,6 +954,90 @@
     "are we ___ for tonight?": ["still on", "still good", "still set"],
     "have you seen ___?": ["the news today", "my keys", "this movie"],
     "let's meet ___ the station.": ["in front of", "near", "outside"],
+    /* v4.6 보강 — 남은 99문장 중 빈칸이 두 단어 이상이고 요청·진료·여행·전화·회의·위로에서
+       실제로 자주 쓰는 틀 80개(칩 문장 283 → 363). 슬롯은 문장 첫머리·중간 어디에 놓여도
+       말이 되도록 소문자로만 적고(표시할 때 문장 첫 글자만 대문자), 관사·구두점·인접 중복·
+       프레임 겹침·길이를 스크립트로 전수 검사했고 육안으로 문장을 하나씩 읽어 확인했다. */
+    "___ sit here?": ["mind if we", "okay if we"],
+    "___ opening the window?": ["would you mind", "do you mind"],
+    "___ to change the date?": ["would it be possible", "is there any way", "is it possible"],
+    "___ you could let me know by friday.": ["it would help if", "it would be great if"],
+    "___ how grateful i am.": ["words can't express", "nothing can express"],
+    "___, i need to call my mom.": ["that reminds me", "speaking of which"],
+    "___, we have no choice.": ["as we see it", "the way things look"],
+    "___, we should wait.": ["in my opinion", "if you ask me", "my take is"],
+    "___, we should stay flexible.": ["having said that", "that said", "even so"],
+    "___, but there's a risk.": ["that's a fair point", "you may be right", "fair enough"],
+    "___, that rarely works.": ["from my experience", "in my experience", "in practice"],
+    "___, i disagree.": ["with all due respect", "to be honest", "from where we stand"],
+    "___, that's three people at seven.": ["just to confirm", "just to double-check", "so to be clear"],
+    "___, you're saying the budget is cut.": ["just to confirm", "so to be clear", "if we understand correctly"],
+    "___, so let's stop here.": ["time's up", "we're out of time", "that's all for today"],
+    "___, please?": ["who's calling", "sorry to keep you waiting"],
+    "___. how can i help you?": ["thanks for waiting", "thanks for holding"],
+    "___ doing?": ["how's the family", "how's everyone", "how's work"],
+    "___ two o'clock at the café?": ["how about", "what about"],
+    "___ the train station?": ["is this the way to", "how do we get to", "which bus goes to"],
+    "___ the hotel from the airport?": ["how far is", "is it far to"],
+    "___ by taxi?": ["how long does it take", "how much is it", "is it faster"],
+    "___ is it?": ["how many stops", "how far"],
+    "___ now?": ["can you hear me", "are you there", "is this better"],
+    "___ sarah?": ["how do you know", "do you know"],
+    "___ this cough?": ["how long have you had", "when did you first get"],
+    "___ i move my arm.": ["it hurts when", "it stings when", "it aches when"],
+    "___, but could i borrow your charger?": ["sorry to bother you", "hate to ask", "this is a bit awkward"],
+    "could you ___ tomorrow?": ["remind me", "call me", "text me back"],
+    "could you ___ the salt?": ["pass me", "pass", "hand me"],
+    "sorry to interrupt. do you ___?": ["have a second", "have a minute", "have a moment"],
+    "could you ___ we get there?": ["let me know when", "wake me up when", "tap me when"],
+    "could you ___ here, please?": ["pull over", "stop", "let me out"],
+    "could you ___ that email?": ["cc me on", "forward me", "send me a copy of"],
+    "could you give me ___ that?": ["the reasoning behind", "more detail on", "an example of"],
+    "could you speak a little louder? i can't ___.": ["hear you", "hear well", "follow you"],
+    "could i have this ___, please?": ["heated up", "wrapped up", "to go"],
+    "could we ___ this?": ["compromise on", "talk about", "look at"],
+    "don't ___ over it.": ["beat yourself up", "be too hard on yourself"],
+    "i'm a little ___ the scan.": ["nervous about", "worried about", "anxious about"],
+    "my ___ is in my wallet.": ["insurance card", "health card", "member card"],
+    "i'd ___ take antibiotics.": ["rather not", "prefer not to", "try not to"],
+    "i'd like to ___ the doctor.": ["make an appointment with", "speak to", "see"],
+    "i'm sorry i ___.": ["snapped at you", "kept you waiting", "forgot your birthday"],
+    "i'm so sorry ___.": ["for your loss", "for the mix-up", "about the delay"],
+    "i'm keeping my ___ for you.": ["fingers crossed", "hopes up"],
+    "i'm really ___ this place.": ["going to miss", "gonna miss", "sad to leave"],
+    "i'm stuck in traffic, so ___.": ["start without me", "go ahead without me", "don't wait for me"],
+    "sorry, my ___.": ["camera isn't working", "mic isn't working", "connection is bad"],
+    "sorry, ___.": ["something came up", "something urgent came up", "plans changed"],
+    "i bought this last week and ___.": ["it broke", "it stopped working", "the button fell off"],
+    "is there ___ this?": ["a warranty on", "a discount on", "a return policy on"],
+    "is there ___ the city center?": ["a shuttle to", "a bus to", "a direct train to"],
+    "is this gate for ___?": ["the late flight", "the morning flight", "the connecting flight"],
+    "let's ___ the next slide.": ["move on to", "go on to", "get to"],
+    "let's keep this ___ for now.": ["between us", "off the record", "between you and me"],
+    "take your time. ___.": ["there's no rush", "we're not in a hurry"],
+    "that ___ to me.": ["doesn't sound right", "doesn't look right", "makes no sense"],
+    "we're stuck in ___.": ["a jam", "traffic", "a huge jam"],
+    "you did your best, and ___.": ["that counts", "that's enough", "that matters"],
+    "cheer up, it's not ___.": ["the end of the world", "the worst thing ever"],
+    "excuse me, ___ the museum?": ["how do we get to", "is this the way to", "which way is"],
+    "i think the data ___.": ["tells a different story", "points the other way", "says otherwise"],
+    "i'll show you some numbers that ___.": ["back this up", "support this", "make the case"],
+    "i'll do it ___.": ["as soon as possible", "before the day ends"],
+    "i'll ___, thanks.": ["walk from here", "take it from here", "manage from here"],
+    "i'll ___ it doesn't happen again.": ["make sure", "make certain"],
+    "i'll ___ ten minutes.": ["be there in", "be down in", "be back in"],
+    "i'll text you ___.": ["when we land", "when we arrive", "after the meeting"],
+    "i'll put you ___.": ["on speaker", "on hold", "through"],
+    "can we ___ three?": ["move our meeting to", "move it to", "push it to"],
+    "can we ___ to next week?": ["push the deadline", "move the meeting", "postpone it"],
+    "can i get ___ tomorrow morning?": ["a ticket for", "a seat for", "two tickets for"],
+    "i need to ___ the next stop.": ["get off at", "change at", "get out at"],
+    "turn right ___.": ["at the second light", "at the next corner", "after the bridge"],
+    "does this bus ___ the market?": ["stop at", "go to", "stop near"],
+    "the weather's been awful, ___?": ["hasn't it", "right"],
+    "just ___, the client wants changes.": ["a heads-up", "a quick heads-up", "as a heads-up"],
+    "i have ___ her.": ["no idea what to get", "no clue what to buy"],
+    "anyway, i should ___.": ["get going", "head out", "get back to work"],
   };
   var CH_OBJ_VERB = {};
   ('get have take bring order buy book need want like love try check call send meet start finish open close ' +
@@ -1020,9 +1106,24 @@
   }
 
   /* 틀에 고른 표현을 넣은 문장 — 칩을 누를 때마다 바뀐다(입으로 말하기 전에 눈으로 한 번) */
+  /* 자리가 문장 첫머리(또는 마침표·물음표 뒤)면 첫 글자를 대문자로 — 틀 사전 슬롯은 소문자로만 적는다 */
+  function patSlot(frame, slot) {
+    var f = String(frame == null ? '' : frame);
+    var s = String(slot == null ? '' : slot);
+    var at = f.indexOf('___');
+    var head = at < 0 ? '' : f.slice(0, at);
+    var atStart = !head.trim() || /[.?!]\s*$/.test(head);
+    return (atStart && s) ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+  function patSentence(frame, slot) {
+    var f = String(frame == null ? '' : frame);
+    var at = f.indexOf('___');
+    var s = patSlot(f, slot);
+    return at < 0 ? f + s : f.slice(0, at) + s + f.slice(at + 3);
+  }
   function patLiveHtml(frame, slot) {
     var a = String(frame == null ? '' : frame).split('___');
-    return escapeHtml(a[0]) + '<u>' + escapeHtml(slot == null ? '' : slot) + '</u>' + escapeHtml(a[1] || '');
+    return escapeHtml(a[0]) + '<u>' + escapeHtml(patSlot(frame, slot)) + '</u>' + escapeHtml(a[1] || '');
   }
 
   function patternPanelHtml(c) {
@@ -1063,11 +1164,11 @@
         pick = b.dataset.slot;
         chips.forEach(function (x) { x.classList.toggle('on', x === b); });
         if (live) live.innerHTML = '<span>지금 문장</span>' + patLiveHtml(frame, pick);
-        speak(frame.replace('___', pick));
+        speak(patSentence(frame, pick));
       });
     });
     var say = box.querySelector('[data-act="say"]');
-    if (say) say.addEventListener('click', function () { speak(frame.replace('___', pick)); });
+    if (say) say.addEventListener('click', function () { speak(patSentence(frame, pick)); });
     var own = box.querySelector('.pat-own');
     var ownBtn = box.querySelector('[data-act="own"]');
     if (ownBtn && own) ownBtn.addEventListener('click', function () {
@@ -1083,12 +1184,12 @@
       var inp = own.querySelector('.pat-input');
       var val = inp ? String(inp.value || '').trim() : '';
       if (!val) { toast('넣고 싶은 말을 먼저 입력해 주세요'); if (inp) inp.focus(); return; }
-      speak(frame.replace('___', val));
+      speak(patSentence(frame, val));
     });
     var sh = box.querySelector('[data-act="shadow"]');
     var note = box.querySelector('.pat-note');
     if (sh) sh.addEventListener('click', function () {
-      shadowTarget(frame.replace('___', pick), sh, note);
+      shadowTarget(patSentence(frame, pick), sh, note);
     });
   }
 
@@ -3949,7 +4050,17 @@
 
   var chatTopic = null;
   var chatBusy = false;
-  var chatRuleFilter = '';   /* 자주 고친 표현 칩 → 그 규칙에 걸린 문장만 보기 */
+  var chatRuleSel = [];      /* 자주 고친 표현 칩 → 고른 규칙들(여러 개를 함께 고를 수 있다) */
+  var chatFixDay = '';       /* '이번 주' 막대에서 고른 칸(YYYY-MM-DD) — '' 이면 해제. 화면 상태라 저장하지 않는다 */
+  function ruleLabel() { return chatRuleSel.join('·'); }
+  function dayText(key) {
+    if (!key) return '';
+    var d = new Date(key + 'T00:00:00');
+    var WD = ['일', '월', '화', '수', '목', '금', '토'];
+    return key.slice(5).replace('-', '.') + '(' + WD[d.getDay()] + ')';
+  }
+  /* 노트가 어느 규칙에 걸렸는지 — 규칙 이름이 없으면 바뀐 구절로 대신한다(집계와 같은 기준) */
+  function noteWhy(n) { return (n && n.why) || ((n && n.from || '') + ' → ' + (n && n.to || '')); }
 
   function chatStore(id) {
     store.chat = store.chat || {};
@@ -4087,10 +4198,24 @@
       return out;
     }
     acc.series = seriesOf(function (x) { return days[x.key] || 0; });
-    if (chatRuleFilter) {
-      var rd = ruleDay[chatRuleFilter] || {};
-      acc.ruleWhy = chatRuleFilter;
-      acc.ruleSeries = seriesOf(function (x) { return rd[x.key] || 0; });
+    /* 고른 규칙들(1~4개)의 합 — 칩을 여러 개 골라도 미니 추이는 한 줄로 견준다 */
+    if (chatRuleSel.length) {
+      var rds = chatRuleSel.map(function (k) { return ruleDay[k] || {}; });
+      acc.ruleWhy = ruleLabel();
+      acc.ruleRules = chatRuleSel.slice();
+      acc.ruleSeries = seriesOf(function (x) {
+        var rn = 0;
+        rds.forEach(function (rd) { rn += rd[x.key] || 0; });
+        return rn;
+      });
+    }
+    /* '이번 주' 막대에서 고른 칸 — 그날 기록만 보는 하위 필터 */
+    if (p === -1 && chatFixDay) {
+      var prevDayKey = todayKey(new Date(new Date(chatFixDay + 'T00:00:00').getTime() - 7 * DAY));
+      acc.dayKey = chatFixDay;
+      acc.dayN = days[chatFixDay] || 0;
+      acc.dayPrev = days[prevDayKey] || 0;
+      acc.dayLabel = dayText(chatFixDay);
     }
     /* 전체 기간의 주 수 — 주 평균을 내기 위해 */
     if (acc.firstAt) {
@@ -4111,8 +4236,9 @@
     for (var i = 0; i < half; i++) prevHalf += ser[i].n;
     var nowHalf = sum - prevHalf;
     var word = fixPeriodLabel(fx.p);
+    var many = (fx.ruleRules || []).length > 1;
     return '<div class="fix-rule" aria-label="' + escapeHtml(fx.ruleWhy) + ' 추이">' +
-      '<span class="fix-rule-t">이 표현 · ' + word + ' <b>' + sum + '</b>곳' +
+      '<span class="fix-rule-t">' + (many ? '이 표현들' : '이 표현') + ' · ' + word + ' <b>' + sum + '</b>곳' +
       (ser.length > 1 ? ' · 앞 절반보다 ' + (nowHalf === prevHalf ? '같아요' : (nowHalf < prevHalf ? (prevHalf - nowHalf) + '곳 적어요' : (nowHalf - prevHalf) + '곳 많아요')) : '') +
       '</span>' +
       '<div class="fix-bars' + (ser.length > 10 ? ' dense' : '') + '">' + ser.map(function (d) {
@@ -4187,6 +4313,7 @@
       if (!t || !t.turns) return;
       t.turns.forEach(function (m) {
         if (m.role !== 'me' || (m.at || 0) < from) return;
+        if (chatFixDay && fx.p === -1 && todayKey(new Date(m.at || 0)) !== chatFixDay) return;
         var notes = (m.notes || []).slice();
         if (!notes.length && m.corrected && m.corrected !== m.text) {
           notes = [{ from: m.text, to: m.corrected, why: '더 자연스러운 표현' }];
@@ -4195,7 +4322,7 @@
         var en = String(m.corrected || m.text || '').trim();
         if (!en) return;
         notes.forEach(function (n) {
-          if (chatRuleFilter && (n.why || ((n.from || '') + ' → ' + (n.to || ''))) !== chatRuleFilter) return;
+          if (chatRuleSel.length && chatRuleSel.indexOf(noteWhy(n)) < 0) return;
           var k = en.toLowerCase();     /* 같은 문장이 여러 번 나오지 않게 — 문장 단위로 한 번 */
           if (seen[k]) return;
           seen[k] = 1;
@@ -4218,10 +4345,9 @@
 
   var FIXRUN = null;
   function inFixRun() { return !$('#fixRun').hidden; }
-  function startFixRun() {
-    var items = fixSayItems();
-    if (!items.length) { toast('다시 말할 고친 문장이 없어요 — 회화방에서 한마디 해 보세요'); return; }
-    FIXRUN = { items: items, i: 0 };
+  function startFixRunItems(items) {
+    if (!items || !items.length) { toast('다시 말할 고친 문장이 없어요 — 회화방에서 한마디 해 보세요'); return; }
+    FIXRUN = { items: items.slice(0, SET_SIZE), i: 0 };
     $('#chatTopics').hidden = true;
     $('#chatRoom').hidden = true;
     $('#fixRun').hidden = false;
@@ -4229,6 +4355,7 @@
     pushLayer();
     fixRunShow();
   }
+  function startFixRun() { startFixRunItems(fixSayItems()); }
   function fixRunShow() {
     if (!FIXRUN) return;
     if (FIXRUN.i >= FIXRUN.items.length) { fixRunFinish(); return; }
@@ -4328,45 +4455,80 @@
           cmpTxt = fx.pprev ? (diff === 0 ? lab + '과 같아요' : diff > 0 ? lab + '보다 ' + diff + '곳 많아요' : lab + '보다 ' + (-diff) + '곳 적어요')
             : lab + ' 기록은 없어요';
         }
+        /* '이번 주'는 칸을 버튼으로 — 누르면 그날 기록만, 다시 누르면 해제(화면 상태) */
+        var wkView = fx.p === -1;
+        var dayOn = wkView && !!chatFixDay;
+        var todayStr = todayKey();
+        var barsHtml = fx.series.map(function (d, i) {
+          var inner = '<i class="' + (i === fx.todayIdx ? 'today' : '') + (d.n ? '' : ' zero') +
+            '" style="height:' + (4 + Math.round(d.n / max * 18)) + 'px" title="' + escapeHtml(d.label) + ' · ' + d.n + '곳"></i>';
+          if (!wkView) return inner;
+          var on = chatFixDay === d.key;
+          var fut = d.key > todayStr;
+          var tip = d.label + ' · ' + d.n + '곳' + (fut ? ' (아직 오지 않은 날)' : ' · 눌러서 그날만 보기');
+          return '<button type="button" class="fix-day' + (on ? ' on' : '') + (fut ? ' fut' : '') + (d.n ? '' : ' zero') +
+            '" data-d="' + d.key + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + escapeHtml(tip) +
+            '" title="' + escapeHtml(tip) + '">' + inner + '</button>';
+        }).join('');
+        var trendTxt = dayOn
+          ? fx.dayLabel + ' <b>' + fx.dayN + '</b>곳 · 지난주 같은 요일 ' + (fx.dayPrev ? fx.dayPrev + '곳' : '기록 없음')
+          : fixPeriodLabel(fx.p) + ' <b>' + (fx.p === 0 ? fx.all : fx.pn) + '</b>곳 · ' + cmpTxt;
         tr.innerHTML = '<div class="fix-period" role="group" aria-label="교정 통계 기간">' +
           FIX_PERIODS.map(function (x) {
             return '<button class="fp-chip' + (x === fx.p ? ' active' : '') + '" data-p="' + x + '">' +
               (x === 0 ? '전체' : x === -1 ? '이번 주' : x + '일') + '</button>';
           }).join('') + '</div>' +
           '<div class="fix-trend' + (dense ? ' dense' : '') + '">' +
-          '<div class="fix-bars' + (dense ? ' dense' : '') + '" aria-label="' + fixPeriodLabel(fx.p) + ' 교정 추이">' + fx.series.map(function (d, i) {
-            return '<i class="' + (i === fx.todayIdx ? 'today' : '') + (d.n ? '' : ' zero') +
-              '" style="height:' + (4 + Math.round(d.n / max * 18)) + 'px" title="' + escapeHtml(d.label) + ' · ' + d.n + '곳"></i>';
-          }).join('') + '</div>' +
-          '<span class="fix-trend-t">' + fixPeriodLabel(fx.p) + ' <b>' + (fx.p === 0 ? fx.all : fx.pn) + '</b>곳 · ' + cmpTxt + '</span></div>';
+          '<div class="fix-bars' + (dense ? ' dense' : '') + (wkView ? ' wk' : '') + '" aria-label="' + fixPeriodLabel(fx.p) + ' 교정 추이">' + barsHtml + '</div>' +
+          '<span class="fix-trend-t">' + trendTxt + '</span></div>' +
+          (dayOn ? '<p class="fix-filter">🗓 ' + fx.dayLabel + ' 기록만 보는 중' +
+            (chatRuleSel.length ? ' · ‘' + escapeHtml(ruleLabel()) + '’' : '') +
+            ' <button class="ghost-btn small" id="fixDayClear">이 날 해제</button></p>' : '');
         $$('#chatFixTrend .fp-chip').forEach(function (b) {
           b.addEventListener('click', function () {
             var np = Number(b.dataset.p);
             if (np === chatFixPeriod) return;
             chatFixPeriod = np;
+            chatFixDay = '';          /* 기간을 바꾸면 칸 선택은 풀린다 */
             renderChatTab();
           });
         });
+        $$('#chatFixTrend .fix-day').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var d = b.dataset.d;
+            if (chatFixDay === d) { chatFixDay = ''; renderChatTab(); return; }
+            if (d > todayKey()) { toast('아직 오지 않은 날이에요'); return; }
+            chatFixDay = d;
+            renderChatTab();
+          });
+        });
+        var dcl = $('#fixDayClear');
+        if (dcl) dcl.addEventListener('click', function () { chatFixDay = ''; renderChatTab(); });
       }
     }
     var top = $('#chatFixTop');
     if (top) {
       top.innerHTML = fx.all && fx.top.length
-        ? '<p class="fix-top-lbl">자주 고친 곳 · 눌러서 이 표현만 보기</p><div class="fix-top-chips">' + fx.top.map(function (r) {
-          return '<button class="fix-top-chip' + (chatRuleFilter === r.why ? ' on' : '') + '" data-why="' + escapeHtml(r.why) + '">' +
+        ? '<p class="fix-top-lbl">자주 고친 곳 · 여러 개를 함께 골라도 돼요</p><div class="fix-top-chips">' + fx.top.map(function (r) {
+          var on = chatRuleSel.indexOf(r.why) > -1;
+          return '<button class="fix-top-chip' + (on ? ' on' : '') + '" data-why="' + escapeHtml(r.why) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
             escapeHtml(r.why) + ' <b>' + r.p + '</b>' + (r.p !== r.n ? '<em>전체 ' + r.n + '</em>' : '') + '</button>';
         }).join('') + '</div>' +
-        (chatRuleFilter ? '<p class="fix-filter">‘' + escapeHtml(chatRuleFilter) + '’만 보는 중 <button class="ghost-btn small" id="fixFilterClear">전체 보기</button></p>' +
+        (chatRuleSel.length ? '<p class="fix-filter">‘' + escapeHtml(ruleLabel()) + '’' +
+          (chatRuleSel.length > 1 ? ' ' + chatRuleSel.length + '개 규칙' : '') + '만 보는 중 ' +
+          '<button class="ghost-btn small" id="fixFilterClear">전체 보기</button></p>' +
           ruleMiniTrend(fx) : '')
         : '';
       $$('#chatFixTop .fix-top-chip').forEach(function (b) {
         b.addEventListener('click', function () {
-          chatRuleFilter = chatRuleFilter === b.dataset.why ? '' : b.dataset.why;
+          var why = b.dataset.why, at = chatRuleSel.indexOf(why);
+          if (at > -1) chatRuleSel.splice(at, 1);
+          else chatRuleSel.push(why);
           renderChatTab();
         });
       });
       var fc = $('#fixFilterClear');
-      if (fc) fc.addEventListener('click', function () { chatRuleFilter = ''; renderChatTab(); });
+      if (fc) fc.addEventListener('click', function () { chatRuleSel = []; renderChatTab(); });
     }
     var fd = $('#chatFixDrill');
     if (fd) {
@@ -4382,7 +4544,10 @@
       var items = fixSayItems();
       fs.hidden = !items.length;
       if (items.length) {
-        fs.textContent = '🗣 ' + (chatRuleFilter ? '‘' + chatRuleFilter + '’' : '고친') + ' 문장 ' +
+        var scope = [];
+        if (chatRuleSel.length) scope.push('‘' + ruleLabel() + '’');
+        if (chatFixDay && fx.p === -1) scope.push(dayText(chatFixDay));
+        fs.textContent = '🗣 ' + (scope.length ? scope.join(' · ') : '고친') + ' 문장 ' +
           Math.min(SET_SIZE, items.length) + '개 다시 말하기';
         fs.onclick = function () { startFixRun(); };
       }
@@ -4402,15 +4567,31 @@
         var wfrom = fx.p === -1 ? fx.wk0 : midnight.getTime() - (fx.p - 1) * 86400000;
         rows = rows.filter(function (r) { return (r.x.at || 0) >= wfrom; });
       }
-      if (chatRuleFilter) {
+      if (chatRuleSel.length) {
         rows = rows.filter(function (r) {
-          return (r.x.notes || []).some(function (n) {
-            return (n.why || ((n.from || '') + ' → ' + (n.to || ''))) === chatRuleFilter;
-          });
+          return (r.x.notes || []).some(function (n) { return chatRuleSel.indexOf(noteWhy(n)) > -1; });
         });
       }
+      if (chatFixDay && fx.p === -1) {
+        rows = rows.filter(function (r) { return todayKey(new Date(r.x.at || 0)) === chatFixDay; });
+      }
+      /* 기록 한 줄 → 그 문장 하나만 다시 말하기(Duolingo 복습 타일식). 문장·규칙은 화면 상태로만 */
+      var sayRows = [];
       function rowHtml(r) {
         var x = r.x;
+        var notes = (x.notes || []).slice();
+        if (!notes.length && x.corrected && x.corrected !== x.text) {
+          notes = [{ from: x.text, to: x.corrected, why: '더 자연스러운 표현' }];
+        }
+        var si = -1;
+        var n0 = notes[0];
+        if (n0 && String(x.corrected || x.text || '').trim()) {
+          si = sayRows.length;
+          sayRows.push({
+            en: String(x.corrected || x.text || '').trim(), orig: String(x.text || ''),
+            from: String(n0.from || ''), to: String(n0.to || ''), why: String(n0.why || '고친 곳'), at: x.at || 0
+          });
+        }
         return '<div class="hrow"><div class="hrow-top"><span class="hrow-topic">' + r.t.icon + ' ' + r.t.name + '</span>' +
           '<span class="hrow-time">' + new Date(x.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + '</span></div>' +
           '<p class="hrow-orig">' + escapeHtml(x.text) + '</p>' +
@@ -4418,6 +4599,7 @@
           (x.notes && x.notes.length ? '<ul class="hrow-notes">' + x.notes.map(function (n) {
             return '<li><b>' + escapeHtml(n.from) + '</b> → <b>' + escapeHtml(n.to) + '</b> · ' + escapeHtml(n.why) + '</li>';
           }).join('') + '</ul>' : '<p class="hrow-ok">교정할 곳 없음</p>') +
+          (si >= 0 ? '<div class="hrow-acts"><button class="ghost-btn small hrow-say" data-i="' + si + '">🗣 이 문장 다시 말하기</button></div>' : '') +
           '</div>';
       }
       var shown = rows.slice(0, 30);
@@ -4446,10 +4628,19 @@
         }
       }
       hist.innerHTML = rows.length ? histHtml : '<p class="muted small">' +
-        (chatRuleFilter ? '이 기간에 이 표현에 걸린 문장이 없어요. <button class="ghost-btn small" id="fixFilterClear2">전체 보기</button>'
+        (chatRuleSel.length || (chatFixDay && fx.p === -1)
+          ? (chatFixDay && fx.p === -1 ? fx.dayLabel : '이 기간') + '에 ' +
+            (chatRuleSel.length ? '‘' + escapeHtml(ruleLabel()) + '’에 걸린 ' : '') + '문장이 없어요. ' +
+            '<button class="ghost-btn small" id="fixFilterClear2">필터 해제</button>'
           : (fx.all ? '이 기간에 기록이 없어요 — <b>전체</b>로 바꾸면 지난 기록까지 보여요.' : '기록이 쌓이면 여기에서 한 번에 복습할 수 있어요.')) + '</p>';
       var fc2 = $('#fixFilterClear2');
-      if (fc2) fc2.addEventListener('click', function () { chatRuleFilter = ''; renderChatTab(); });
+      if (fc2) fc2.addEventListener('click', function () { chatRuleSel = []; chatFixDay = ''; renderChatTab(); });
+      $$('#chatHistory .hrow-say').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var it = sayRows[Number(b.dataset.i)];
+          if (it) startFixRunItems([it]);
+        });
+      });
     }
     /* AI 키 상태 */
     var aiState = $('#aiState');
@@ -5057,7 +5248,14 @@
       recReset: recReset,
       pattern: function (w) { var c = cardByW(w); return c ? patternDrill(c) : null; },
       fixStats: function () { return chatFixStats(); },
-      fixFilter: function (v) { chatRuleFilter = String(v || ''); renderChatTab(); return chatRuleFilter; },
+      fixFilter: function (v) { chatRuleSel = v ? [String(v)] : []; if (v) chatFixDay = ''; renderChatTab(); return ruleLabel(); },
+      fixFilters: function (arr) { chatRuleSel = (arr || []).map(String); renderChatTab(); return chatRuleSel.slice(); },
+      fixFilterSel: function () { return chatRuleSel.slice(); },
+      fixDay: function () { return chatFixDay; },
+      fixDaySet: function (d) { chatFixDay = String(d || ''); renderChatTab(); return chatFixDay; },
+      fixRowSay: function (i) { var b = $$('#chatHistory .hrow-say')[i]; if (b) b.click(); return !!b; },
+      fixRowSayCount: function () { return $$('#chatHistory .hrow-say').length; },
+      patSentence: function (f, s) { return patSentence(f, s); },
       /* 기록 목록의 기간 필터와 같은 기준으로 셀 수 있게 내 문장 시각만 돌려준다 */
       chatMeAt: function () {
         var out = [];

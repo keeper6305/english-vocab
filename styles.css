@@ -1104,6 +1104,21 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .fp-chip.active { background: var(--accent-soft); color: var(--accent); }
 .fix-bars.dense { gap: 1px; }
 .fix-bars.dense i { width: 4px; }
+
+/* ===== v4.6 · '이번 주' 막대 칸(누르면 그날만) · 기록 한 줄 다시 말하기 ===== */
+.fix-bars.wk { gap: 2px; }
+.fix-day {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 15px; height: 100%; padding: 0; border: 0; background: none;
+  cursor: pointer; border-radius: 4px; font-family: inherit;
+}
+.fix-day i { width: 9px; }
+.fix-day.on { background: var(--accent-soft); }
+.fix-day.on i { background: var(--accent); }
+.fix-day.fut { cursor: default; opacity: .45; }
+.fix-day.zero i { background: var(--line); }
+.hrow-acts { display: flex; justify-content: flex-end; margin-top: 5px; }
+.hrow-acts .ghost-btn { padding: 4px 8px; font-size: 10.5px; white-space: nowrap; }
 .fix-rule { display: flex; align-items: flex-end; gap: 7px; margin: 6px 0 0; flex-wrap: wrap; }
 .fix-rule-t { font-size: 10.5px; color: var(--text-dim); line-height: 1.4; flex: 1 1 130px; min-width: 0; }
 .fix-rule-t b { color: var(--accent); }
