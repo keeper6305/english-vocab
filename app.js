@@ -4216,6 +4216,10 @@
       acc.dayN = days[chatFixDay] || 0;
       acc.dayPrev = days[prevDayKey] || 0;
       acc.dayLabel = dayText(chatFixDay);
+      /* 규칙까지 골랐으면 그날 그 규칙들의 합 — 미니 추이 문구가 기간과 어긋나지 않게 */
+      acc.dayRuleN = chatRuleSel.length ? chatRuleSel.reduce(function (s, k) {
+        return s + ((ruleDay[k] || {})[chatFixDay] || 0);
+      }, 0) : null;
     }
     /* 전체 기간의 주 수 — 주 평균을 내기 위해 */
     if (acc.firstAt) {
@@ -4235,11 +4239,13 @@
     var half = Math.floor(ser.length / 2);
     for (var i = 0; i < half; i++) prevHalf += ser[i].n;
     var nowHalf = sum - prevHalf;
-    var word = fixPeriodLabel(fx.p);
+    var word = fx.dayKey ? fx.dayLabel : fixPeriodLabel(fx.p);
     var many = (fx.ruleRules || []).length > 1;
+    var onDay = !!fx.dayKey;
+    var sumShow = onDay && fx.dayRuleN != null ? fx.dayRuleN : sum;
     return '<div class="fix-rule" aria-label="' + escapeHtml(fx.ruleWhy) + ' 추이">' +
-      '<span class="fix-rule-t">' + (many ? '이 표현들' : '이 표현') + ' · ' + word + ' <b>' + sum + '</b>곳' +
-      (ser.length > 1 ? ' · 앞 절반보다 ' + (nowHalf === prevHalf ? '같아요' : (nowHalf < prevHalf ? (prevHalf - nowHalf) + '곳 적어요' : (nowHalf - prevHalf) + '곳 많아요')) : '') +
+      '<span class="fix-rule-t">' + (many ? '이 표현들' : '이 표현') + ' · ' + word + ' <b>' + sumShow + '</b>곳' +
+      (!onDay && ser.length > 1 ? ' · 앞 절반보다 ' + (nowHalf === prevHalf ? '같아요' : (nowHalf < prevHalf ? (prevHalf - nowHalf) + '곳 적어요' : (nowHalf - prevHalf) + '곳 많아요')) : '') +
       '</span>' +
       '<div class="fix-bars' + (ser.length > 10 ? ' dense' : '') + '">' + ser.map(function (d) {
         return '<i class="' + (d.n ? '' : ' zero') + '" style="height:' + (3 + Math.round(d.n / max * 14)) + 'px" title="' + escapeHtml(d.label) + ' · ' + d.n + '곳"></i>';
