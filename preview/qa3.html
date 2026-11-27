@@ -2396,7 +2396,8 @@ async function v47ReviewTests(c) {
   rec(c.w, 'v47복기:내 답이 기록됨', rv2.detail.indexOf(String(uq[0].pick)) > -1, 'pick=' + uq[0].pick);
   rec(c.w, 'v47복기:듣기 버튼', rv2.hasSay, 'say=' + rv2.hasSay);
   QA.revOpen(0); await sleep(40);
-  rec(c.w, 'v47복기:다시 누르면 접힘', QA.revState().detailHidden === true, 'hidden=' + QA.revState().detailHidden);
+  rec(c.w, 'v47복기:다시 누르면 접힘', QA.revState().opened === false && QA.revState().exp === 'false',
+    'opened=' + QA.revState().opened + ' exp=' + QA.revState().exp);
 
   var wi = -1;
   for (var k = 0; k < uq.length; k++) { if (!uq[k].ok) { wi = k; break; } }
@@ -2441,7 +2442,7 @@ async function v47PatRunTests(c) {
     if (!seen[k] && items.length < 3) { seen[k] = 1; items.push(s); }
   });
   var m = QA.patMount(target.w);
-  var box = document.getElementById('qaPatMount');
+  var box = c.doc.getElementById('qaPatMount');
   rec(c.w, 'v47패턴:카드 마운트', !!box && !!m, target.w);
   if (!box) return;
   var go = box.querySelector('[data-act="run"]');
@@ -2453,8 +2454,8 @@ async function v47PatRunTests(c) {
   var s1 = QA.patRunState();
   rec(c.w, 'v47패턴:1/3 시작', !!s1 && s1.open && s1.num === '1/' + items.length && !s1.done, s1 ? s1.num + ' · ' + s1.sent : 'null');
   rec(c.w, 'v47패턴:1번째 문장', !!s1 && s1.sent === QA.patSentence(target.frame, items[0]), s1 ? s1.sent : '');
-  rec(c.w, 'v47패턴:칩 잠시 숨김', getComputedStyle(box.querySelector('.pat-chips')).display === 'none',
-    getComputedStyle(box.querySelector('.pat-chips')).display);
+  rec(c.w, 'v47패턴:칩 잠시 숨김', c.win.getComputedStyle(box.querySelector('.pat-chips')).display === 'none',
+    c.win.getComputedStyle(box.querySelector('.pat-chips')).display);
   rec(c.w, 'v47패턴:1칸 켜짐', !!s1 && s1.dotsOn === 1, s1 ? 'on=' + s1.dotsOn : '');
 
   var nx = box.querySelector('[data-pr="next"]');
@@ -2473,8 +2474,8 @@ async function v47PatRunTests(c) {
   await sleep(60);
   var s4 = QA.patRunState();
   rec(c.w, 'v47패턴:완주 표시', !!s4 && s4.done && s4.msg.indexOf('완주') > -1, s4 ? s4.msg : 'null');
-  rec(c.w, 'v47패턴:완주엔 다음 숨김', getComputedStyle(box.querySelector('.pr-acts')).display === 'none',
-    getComputedStyle(box.querySelector('.pr-acts')).display);
+  rec(c.w, 'v47패턴:완주엔 다음 숨김', c.win.getComputedStyle(box.querySelector('.pr-acts')).display === 'none',
+    c.win.getComputedStyle(box.querySelector('.pr-acts')).display);
   var again = box.querySelector('[data-pr="again"]');
   if (again) again.click();
   await sleep(60);
@@ -2482,7 +2483,7 @@ async function v47PatRunTests(c) {
   var cl = box.querySelector('[data-pr="close"]');
   if (cl) cl.click();
   await sleep(50);
-  rec(c.w, 'v47패턴:패턴으로 복귀', !QA.patRunState().open && getComputedStyle(box.querySelector('.pat-chips')).display !== 'none',
+  rec(c.w, 'v47패턴:패턴으로 복귀', !QA.patRunState().open && c.win.getComputedStyle(box.querySelector('.pat-chips')).display !== 'none',
     'open=' + QA.patRunState().open);
   QA.patUnmount();
 }
