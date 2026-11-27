@@ -24,11 +24,22 @@ if (window.caches) { caches.keys().then(function (ks) { ks.forEach(function (k) 
   <div><iframe id="f360" width="360" height="844"></iframe><div class="cap">360px</div></div>
 </div>
 <script>
+/* 한 폭만 촬영: shot.html?state=...&w=360 → iframe 하나만 */
+(function () {
+  var W = new URLSearchParams(location.search).get('w');
+  if (!W) return;
+  var h = W === '360' ? 780 : W === '430' ? 932 : 844;
+  var host = document.querySelector('.devices');
+  host.innerHTML = '<div><iframe id="f390" width="' + W + '" height="' + h + '"></iframe><div class="cap">' + W + 'px</div></div>';
+})();
+</script>
+<script>
 /* 캐시된 index.html 이 옛 app.js 를 물고 오지 않게 매번 새로 받는다 */
 (function () {
   var cb = '?qa=1&cb=' + Date.now();
   document.getElementById('f390').src = 'index.html' + cb;
-  document.getElementById('f360').src = 'index.html' + cb;
+  var f6 = document.getElementById('f360');
+  if (f6) f6.src = 'index.html' + cb;
 })();
 </script>
 <script>
@@ -327,6 +338,56 @@ async function drive(f) {
       const pb3 = q('#feedback .pat');
       if (pb3) pb3.scrollIntoView({ block: 'center' });
       await sleep(250);
+    } else if (state === 'v47rev') {
+      /* v4.7 세션 복기 — 정답·오답을 섞어 10문제를 끊고 결과에서 틀린 줄을 연다 */
+      q('#startBtn').click(); await sleep(320);
+      let n = 0, wi = -1;
+      while (q('#resultBox').hidden && n < 24) {
+        const st = qa().state();
+        if (!st.S || st.S.i >= st.S.queue.length) break;
+        const ans = qa().options().answer;
+        const btns = Array.from(d.querySelectorAll('#quizOptions .opt'));
+        const wantOk = n % 3 !== 0;
+        const b = wantOk ? btns.find(x => x.dataset.val === ans) : btns.find(x => x.dataset.val !== ans);
+        if (!b) break;
+        if (!wantOk && wi < 0) wi = n;
+        b.click(); await sleep(90);
+        n++;
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(90);
+      }
+      await sleep(350);
+      if (wi < 0) wi = 0;
+      qa().revOpen(Math.min(wi, n - 1));
+      await sleep(300);
+      const rr = q('#rList .r-wrap.open');
+      if (rr) rr.scrollIntoView({ block: 'center' });
+      await sleep(250);
+    } else if (state === 'v47pat') {
+      /* v4.7 패턴 3연타 — 슬롯 3개짜리 틀을 피드백에 띄우고 3연타 2번째 문장 */
+      qa().startConv('blank'); await sleep(380);
+      for (let i = 0; i < 16; i++) {
+        const st = qa().state();
+        if (!st.S || st.S.i >= st.S.queue.length) break;
+        const card = st.S.queue[st.S.i].c;
+        const pd = qa().pattern(card.w);
+        const ok = qa().options().answer;
+        const btns = Array.from(d.querySelectorAll('#blankOptions .opt'));
+        const b = btns.find(x => String(x.dataset.val).toLowerCase() === String(ok).toLowerCase());
+        if (b) b.click(); else break;
+        await sleep(180);
+        if (pd && pd.tier === 2 && pd.slots.length === 3 && q('#feedback .pat')) break;
+        if (q('#fbNext') && !q('#feedback').hidden) q('#fbNext').click();
+        await sleep(150);
+      }
+      await sleep(250);
+      const go = q('#feedback .pat [data-act="run"]');
+      if (go) { go.click(); await sleep(300); }
+      const nx = q('#feedback .pat [data-pr="next"]');
+      if (nx) { nx.click(); await sleep(260); }
+      const pb4 = q('#feedback .pat');
+      if (pb4) pb4.scrollIntoView({ block: 'center' });
+      await sleep(250);
     } else if (state === 'dark') {
       q('#themeBtn').click(); await sleep(250);
       q('#startBtn').click(); await sleep(300);
@@ -339,7 +400,7 @@ async function drive(f) {
 }
 
 drive(document.getElementById('f390'));
-drive(document.getElementById('f360'));
+if (document.getElementById('f360')) drive(document.getElementById('f360'));
 </script>
 </body>
 </html>

@@ -1969,18 +1969,24 @@ async function v45ChunkTests(c) {
   var on = q('#qaChunkMount [data-act="echo"]').classList.contains('on');
   rec(c.w, '리듬:시작 표시', on && q('#qaChunkMount [data-act="echo"]').textContent.indexOf('멈추기') > -1,
     q('#qaChunkMount [data-act="echo"]').textContent);
-  await sleep(3400);
+  /* 실제 음성이 나오는 브라우저에서는 청크마다 1~2초씩 걸리고 그 사이 쉬는 틈까지 있으므로,
+     고정 3.4초가 아니라 라벨이 돌아올 때까지 기다린다(최대 14초 — v4.7 하네스 보완) */
+  var waited = 0;
+  while (q('#qaChunkMount [data-act="echo"]').classList.contains('on') && waited < 14000) {
+    await sleep(250);
+    waited += 250;
+  }
   var sp = spokenList(c).slice(b4).map(function (x) { return x.text; });
   rec(c.w, '리듬:청크 순서대로 재생', sp.length >= 2 && normSent(sp[0]) === normSent('Could I get') && normSent(sp[1]) === normSent('some more water?'),
-    sp.join(' | '));
+    sp.join(' | ') + ' · ' + waited + 'ms');
   rec(c.w, '리듬:끝나면 라벨 복귀', q('#qaChunkMount [data-act="echo"]').textContent.indexOf('리듬') > -1 &&
     !q('#qaChunkMount [data-act="echo"]').classList.contains('on'), q('#qaChunkMount [data-act="echo"]').textContent);
   /* 다시 눌러 멈추기 */
   q('#qaChunkMount [data-act="echo"]').click(); await sleep(500);
   var on2 = q('#qaChunkMount [data-act="echo"]').classList.contains('on');
-  q('#qaChunkMount [data-act="echo"]').click(); await sleep(150);
+  q('#qaChunkMount [data-act="echo"]').click(); await sleep(250);
   var n1 = spokenList(c).length;
-  await sleep(1800);
+  await sleep(2500);
   rec(c.w, '리듬:다시 눌러 멈춤', on2 && !q('#qaChunkMount [data-act="echo"]').classList.contains('on') && spokenList(c).length === n1,
     'spoken ' + n1 + '→' + spokenList(c).length);
   rec(c.w, '리듬:칩 강조 해제', c.doc.querySelectorAll('#qaChunkMount .chk-chip.on').length === 0, '');
@@ -2345,14 +2351,14 @@ async function v46RowSayTests(c) {
  *  V. v4.7 — 세션 복기(내 답/정답 타일) · 패턴 3연타 · 마이크로 인터랙션
  * ============================================================ */
 async function v47ReviewTests(c) {
-  var q = c.q, doc = c.doc, qa = c.qa();
+  var q = c.q, doc = c.doc, QA = c.win.__QA;
   await goHome(c);
   await startMix(c, 'quiz');
   var picks = [], guard = 0, fbOk = '', fbNo = '';
-  while (!qa.atResult() && guard < 26) {
-    var st = qa.state();
+  while (!QA.atResult() && guard < 26) {
+    var st = QA.state();
     if (!st.S || st.S.i >= st.S.queue.length) break;
-    var answer = qa.options().answer;
+    var answer = QA.options().answer;
     var btns = Array.prototype.slice.call(doc.querySelectorAll('#quizOptions .opt'));
     if (!btns.length) break;
     var wantOk = guard % 3 !== 0;
@@ -2373,8 +2379,8 @@ async function v47ReviewTests(c) {
   picks.forEach(function (p) { if (!uniq[p.w]) { uniq[p.w] = 1; uq.push(p); } });
   var wrongN = uq.filter(function (p) { return !p.ok; }).length;
 
-  var rv = qa.revState();
-  rec(c.w, 'v47복기:결과 화면', qa.atResult(), '푼 카드=' + uq.length);
+  var rv = QA.revState();
+  rec(c.w, 'v47복기:결과 화면', QA.atResult(), '푼 카드=' + uq.length);
   rec(c.w, 'v47복기:한 줄씩 타일', rv.n === uq.length, 'rows=' + rv.n + ' 기대=' + uq.length);
   rec(c.w, 'v47복기:틀린 수 일치', rv.wrong === wrongN, 'wrong=' + rv.wrong + ' 기대=' + wrongN);
   rec(c.w, 'v47복기:처음엔 접힘', rv.exp === 'false', 'aria-expanded=' + rv.exp);
@@ -2382,36 +2388,36 @@ async function v47ReviewTests(c) {
   rec(c.w, 'v47미세:정답 피드백 표시', fbOk.indexOf('fb-in-ok') > -1, fbOk);
   rec(c.w, 'v47미세:오답 피드백 표시', fbNo.indexOf('fb-in-no') > -1, fbNo);
 
-  qa.revOpen(0); await sleep(50);
-  var rv2 = qa.revState();
+  QA.revOpen(0); await sleep(50);
+  var rv2 = QA.revState();
   rec(c.w, 'v47복기:펼치면 열림', rv2.opened && rv2.detailHidden === false, 'open=' + rv2.opened + ' hidden=' + rv2.detailHidden);
   rec(c.w, 'v47복기:내 답·정답·뜻', rv2.detail.indexOf('내 답') > -1 && rv2.detail.indexOf('정답') > -1 && rv2.detail.indexOf('뜻') > -1,
     rv2.detail.replace(/\s+/g, ' ').slice(0, 90));
   rec(c.w, 'v47복기:내 답이 기록됨', rv2.detail.indexOf(String(uq[0].pick)) > -1, 'pick=' + uq[0].pick);
   rec(c.w, 'v47복기:듣기 버튼', rv2.hasSay, 'say=' + rv2.hasSay);
-  qa.revOpen(0); await sleep(40);
-  rec(c.w, 'v47복기:다시 누르면 접힘', qa.revState().detailHidden === true, 'hidden=' + qa.revState().detailHidden);
+  QA.revOpen(0); await sleep(40);
+  rec(c.w, 'v47복기:다시 누르면 접힘', QA.revState().detailHidden === true, 'hidden=' + QA.revState().detailHidden);
 
   var wi = -1;
   for (var k = 0; k < uq.length; k++) { if (!uq[k].ok) { wi = k; break; } }
   if (wi >= 0) {
-    qa.revOpen(wi); await sleep(50);
-    var wd = qa.revState();
+    QA.revOpen(wi); await sleep(50);
+    var wd = QA.revState();
     rec(c.w, 'v47복기:틀린 줄에 내 답', wd.detail.indexOf(String(uq[wi].pick)) > -1, 'pick=' + uq[wi].pick);
     rec(c.w, 'v47복기:내 답에 취소선', doc.querySelectorAll('#rList .rm-my').length === 1, 'rm-my=' + doc.querySelectorAll('#rList .rm-my').length);
-    qa.revOpen(wi); await sleep(30);
+    QA.revOpen(wi); await sleep(30);
   }
 
   if (wrongN > 0) {
     rec(c.w, 'v47복기:필터 보임', q('#rFilter') && q('#rFilter').hidden === false, 'hidden=' + (q('#rFilter') ? q('#rFilter').hidden : 'none'));
     rec(c.w, 'v47복기:필터 수', q('#rFilterAll').textContent === String(uq.length) && q('#rFilterNo').textContent === String(wrongN),
       q('#rFilterAll').textContent + '/' + q('#rFilterNo').textContent);
-    qa.revFilter('no'); await sleep(50);
-    var rf = qa.revState();
+    QA.revFilter('no'); await sleep(50);
+    var rf = QA.revState();
     rec(c.w, 'v47복기:틀린 것만 보기', rf.n === wrongN && rf.wrong === wrongN, 'rows=' + rf.n + ' wrong=' + rf.wrong);
     rec(c.w, 'v47복기:필터 문구', rf.cap.indexOf('틀린 ' + wrongN) > -1, rf.cap);
-    qa.revFilter('all'); await sleep(50);
-    rec(c.w, 'v47복기:전체로 복귀', qa.revState().n === uq.length, 'rows=' + qa.revState().n);
+    QA.revFilter('all'); await sleep(50);
+    rec(c.w, 'v47복기:전체로 복귀', QA.revState().n === uq.length, 'rows=' + QA.revState().n);
   }
 
   rec(c.w, 'v47리듬:다음 복습 한 줄', /다음 복습 리듬/.test(rv.rhythm) && /(10분 뒤|1일 뒤|3일 뒤)/.test(rv.rhythm),
@@ -2421,8 +2427,8 @@ async function v47ReviewTests(c) {
 }
 
 async function v47PatRunTests(c) {
-  var q = c.q, qa = c.qa();
-  var all = qa.patternAll();
+  var q = c.q, QA = c.win.__QA;
+  var all = QA.patternAll();
   var target = null;
   for (var i = 0; i < all.length; i++) {
     if (all[i].frame && all[i].slots.length >= 3) { target = all[i]; break; }
@@ -2434,19 +2440,19 @@ async function v47PatRunTests(c) {
     var k = String(s).toLowerCase();
     if (!seen[k] && items.length < 3) { seen[k] = 1; items.push(s); }
   });
-  var m = qa.patMount(target.w);
+  var m = QA.patMount(target.w);
   var box = document.getElementById('qaPatMount');
   rec(c.w, 'v47패턴:카드 마운트', !!box && !!m, target.w);
   if (!box) return;
   var go = box.querySelector('[data-act="run"]');
   rec(c.w, 'v47패턴:3연타 버튼', !!go && go.textContent.indexOf(items.length + '연타') > -1,
     go ? go.textContent : 'none');
-  rec(c.w, 'v47패턴:처음엔 닫힘', !qa.patRunState() || !qa.patRunState().open, JSON.stringify(qa.patRunState()));
+  rec(c.w, 'v47패턴:처음엔 닫힘', !QA.patRunState() || !QA.patRunState().open, JSON.stringify(QA.patRunState()));
   if (go) go.click();
   await sleep(70);
-  var s1 = qa.patRunState();
+  var s1 = QA.patRunState();
   rec(c.w, 'v47패턴:1/3 시작', !!s1 && s1.open && s1.num === '1/' + items.length && !s1.done, s1 ? s1.num + ' · ' + s1.sent : 'null');
-  rec(c.w, 'v47패턴:1번째 문장', !!s1 && s1.sent === qa.patSentence(target.frame, items[0]), s1 ? s1.sent : '');
+  rec(c.w, 'v47패턴:1번째 문장', !!s1 && s1.sent === QA.patSentence(target.frame, items[0]), s1 ? s1.sent : '');
   rec(c.w, 'v47패턴:칩 잠시 숨김', getComputedStyle(box.querySelector('.pat-chips')).display === 'none',
     getComputedStyle(box.querySelector('.pat-chips')).display);
   rec(c.w, 'v47패턴:1칸 켜짐', !!s1 && s1.dotsOn === 1, s1 ? 'on=' + s1.dotsOn : '');
@@ -2454,31 +2460,31 @@ async function v47PatRunTests(c) {
   var nx = box.querySelector('[data-pr="next"]');
   if (nx) nx.click();
   await sleep(60);
-  var s2 = qa.patRunState();
-  rec(c.w, 'v47패턴:2/3 다음 문장', !!s2 && s2.num === '2/' + items.length && s2.sent === qa.patSentence(target.frame, items[1]) && s2.sent !== s1.sent,
+  var s2 = QA.patRunState();
+  rec(c.w, 'v47패턴:2/3 다음 문장', !!s2 && s2.num === '2/' + items.length && s2.sent === QA.patSentence(target.frame, items[1]) && s2.sent !== s1.sent,
     s2 ? s2.num + ' · ' + s2.sent : 'null');
   rec(c.w, 'v47패턴:2칸 켜짐', !!s2 && s2.dotsOn === 2, s2 ? 'on=' + s2.dotsOn : '');
   if (nx) nx.click();
   await sleep(60);
-  var s3 = qa.patRunState();
-  rec(c.w, 'v47패턴:3/3 마지막 문장', !!s3 && s3.num === '3/' + items.length && s3.sent === qa.patSentence(target.frame, items[2]),
+  var s3 = QA.patRunState();
+  rec(c.w, 'v47패턴:3/3 마지막 문장', !!s3 && s3.num === '3/' + items.length && s3.sent === QA.patSentence(target.frame, items[2]),
     s3 ? s3.num + ' · ' + s3.sent : 'null');
   if (nx) nx.click();
   await sleep(60);
-  var s4 = qa.patRunState();
+  var s4 = QA.patRunState();
   rec(c.w, 'v47패턴:완주 표시', !!s4 && s4.done && s4.msg.indexOf('완주') > -1, s4 ? s4.msg : 'null');
   rec(c.w, 'v47패턴:완주엔 다음 숨김', getComputedStyle(box.querySelector('.pr-acts')).display === 'none',
     getComputedStyle(box.querySelector('.pr-acts')).display);
   var again = box.querySelector('[data-pr="again"]');
   if (again) again.click();
   await sleep(60);
-  rec(c.w, 'v47패턴:한 번 더 → 1/3', qa.patRunState().num === '1/' + items.length && !qa.patRunState().done, qa.patRunState().num);
+  rec(c.w, 'v47패턴:한 번 더 → 1/3', QA.patRunState().num === '1/' + items.length && !QA.patRunState().done, QA.patRunState().num);
   var cl = box.querySelector('[data-pr="close"]');
   if (cl) cl.click();
   await sleep(50);
-  rec(c.w, 'v47패턴:패턴으로 복귀', !qa.patRunState().open && getComputedStyle(box.querySelector('.pat-chips')).display !== 'none',
-    'open=' + qa.patRunState().open);
-  qa.patUnmount();
+  rec(c.w, 'v47패턴:패턴으로 복귀', !QA.patRunState().open && getComputedStyle(box.querySelector('.pat-chips')).display !== 'none',
+    'open=' + QA.patRunState().open);
+  QA.patUnmount();
 }
 
 async function resetTests(c) {

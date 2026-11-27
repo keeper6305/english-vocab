@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="영단어 6000">
-<link rel="stylesheet" href="styles.css?v=4.6.3">
+<link rel="stylesheet" href="styles.css?v=4.7.0">
 </head>
 <body>
 <div id="app">
@@ -280,6 +280,12 @@
         <p class="result-num"><span id="rCorrect">0</span>/<span id="rTotal">0</span></p>
         <p class="result-sub" id="rSub"></p>
         <p class="result-combo" id="rCombo"></p>
+        <p class="r-rhythm" id="rRhythm" hidden></p>
+        <p class="r-cap" id="rCap">이번 세트 복기 · 누르면 내 답과 정답</p>
+        <div class="r-filter" id="rFilter" hidden>
+          <button class="rev-chip on" data-rev="all" aria-pressed="true">전체 <b id="rFilterAll">0</b></button>
+          <button class="rev-chip" data-rev="no" aria-pressed="false">틀린 것 <b id="rFilterNo">0</b></button>
+        </div>
         <div class="result-list" id="rList"></div>
         <button class="primary-btn" id="rRecall" hidden>오답 회수 1회전</button>
         <button class="ghost-btn wide weak-again" id="rWeak" hidden>틀린 카드만 다시</button>
@@ -613,7 +619,7 @@
 <script src="data/lv1.js"></script>
 <script src="data/lv5.js"></script>
 <script src="data/meta.js"></script>
-<script src="app.js?v=4.6.3"></script>
+<script src="app.js?v=4.7.0"></script>
 <script>
   // 나머지 레벨은 첫 화면 이후에 받아 둔다 (초기 로딩 1초 유지)
   addEventListener('load', function () {

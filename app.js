@@ -227,6 +227,15 @@
     }
     return a;
   }
+  /* v4.7 — 손끝 반응. 정답에만 아주 짧게(8ms) 울리고, '동작 줄이기'를 켠 기기에서는 아무 것도 하지 않는다.
+     화면 애니메이션은 CSS가 prefers-reduced-motion을 스스로 존중하므로 여기선 진동만 판단한다 */
+  function reduceMotion() {
+    try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+  }
+  function haptic(ms) {
+    if (reduceMotion()) return;
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {}
+  }
   function toast(msg) {
     var el = $('#toast');
     el.textContent = msg;
@@ -630,13 +639,21 @@
       if (v) u.voice = v;
       var t = String(list[i] || '');
       var pause = 700 + Math.min(1400, t.length * 55);   /* 그 청크를 따라 말할 틈 */
+      /* v4.7 — onend가 안 오는 브라우저(음성 미설치·엔진 멈춤)에서도 리듬이 멈추지 않게 안전장치.
+         정상이면 onend가 먼저 불리고 타이머는 아무 것도 안 한다 */
+      var moved = false;
+      var guard = null;
       var next = function () {
+        if (moved) return;
+        moved = true;
+        if (guard) clearTimeout(guard);
         if (token !== CH_SPEAK.token) { label(false); return; }
         i++;
         setTimeout(step, pause);
       };
       u.onend = next;
       u.onerror = next;
+      guard = setTimeout(next, pause + 3000);
       try { window.speechSynthesis.speak(u); } catch (e) { mark(-1); label(false); }
     })();
   }
@@ -1124,9 +1141,25 @@
     return escapeHtml(a[0]) + '<u>' + escapeHtml(patSlot(frame, slot)) + '</u>' + escapeHtml(a[1] || '');
   }
 
+  /* 3연타 재료 — 이 틀에 넣어 볼 표현들. 기준 표현이 먼저, 사전 슬롯이 뒤에. 중복은 하나만 */
+  function patRunItems(p) {
+    if (!p) return [];
+    var out = [], seen = {};
+    [p.base].concat(p.slots || []).forEach(function (s) {
+      var v = String(s == null ? '' : s).trim();
+      if (!v) return;
+      var k = v.toLowerCase();
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push(v);
+    });
+    return out.slice(0, 3);
+  }
+
   function patternPanelHtml(c) {
     var p = patternDrill(c);
     if (!p) return '';
+    var runN = patRunItems(p).length;
     return '<div class="pat" data-frame="' + escapeHtml(p.frame) + '">' +
       '<p class="chk-lbl">🔄 패턴 치환 <span>' + escapeHtml(tagOf(c) || '회화') + '</span></p>' +
       '<p class="pat-frame">' + escapeHtml(p.frame).replace('___', '<u>___</u>') + '</p>' +
@@ -1136,10 +1169,27 @@
       }).join('') + '</div>' : '') +
       '<p class="pat-live"><span>지금 문장</span>' + patLiveHtml(p.frame, p.base) + '</p>' +
       '<div class="pat-acts">' +
+      (runN >= 2 ? '<button class="ghost-btn small pat-go" data-act="run">🔁 ' + runN + '연타</button>' : '') +
       '<button class="ghost-btn small" data-act="say">🔊 방금 문장</button>' +
       (micSupport() ? '<button class="ghost-btn small" data-act="shadow">🎤 따라 말하기</button>' : '') +
       '<button class="ghost-btn small" data-act="own">✏️ 내 말 넣기</button>' +
       '</div>' +
+      (runN >= 2 ? '<div class="pat-run">' +
+        '<div class="pr-top"><span class="pr-cap">같은 틀 · 다른 재료</span><b class="pr-n">1/' + runN + '</b></div>' +
+        '<p class="pr-sent"></p>' +
+        '<div class="pr-dots"></div>' +
+        '<div class="pr-acts">' +
+        '<button class="ghost-btn small" data-pr="say">🔊 듣기</button>' +
+        '<button class="ghost-btn small" data-pr="slow">🐢 0.75x</button>' +
+        (micSupport() ? '<button class="ghost-btn small" data-pr="shadow">🎤 따라 말하기</button>' : '') +
+        '<button class="primary-btn small" data-pr="next">다음</button>' +
+        '</div>' +
+        '<p class="pr-out" hidden></p>' +
+        '<p class="pr-done" hidden></p>' +
+        '<div class="pr-again" hidden>' +
+        '<button class="ghost-btn small" data-pr="again">한 번 더</button>' +
+        '<button class="ghost-btn small" data-pr="close">패턴으로</button></div>' +
+        '</div>' : '') +
       '<div class="pat-own" hidden><input class="pat-input" type="text" placeholder="내 말 넣기 (예: two coffees)" ' +
       'enterkeyhint="done" autocomplete="off"><button class="ghost-btn small" data-act="ownsay">🔊 듣기</button></div>' +
       '<p class="pat-note" hidden></p>' +
@@ -1189,6 +1239,68 @@
     if (sh) sh.addEventListener('click', function () {
       shadowTarget(patSentence(frame, pick), sh, note);
     });
+
+    /* ---- 3연타(v4.7) — Speak의 드릴처럼 같은 틀에 다른 말을 넣어 3문장을 연달아 말한다 ---- */
+    var runBtn = box.querySelector('[data-act="run"]');
+    var runBox = box.querySelector('.pat-run');
+    if (runBtn && runBox) {
+      var items = patRunItems(p);
+      var prI = 0;
+      var prOut = runBox.querySelector('.pr-out');
+      var paintRun = function () {
+        var n = items.length;
+        var done = prI >= n;
+        runBox.dataset.n = n;
+        runBox.dataset.i = done ? n : prI + 1;
+        runBox.dataset.done = done ? '1' : '0';
+        runBox.querySelector('.pr-cap').textContent = done ? '같은 틀 · 완주' : '같은 틀 · 다른 재료';
+        runBox.querySelector('.pr-n').textContent = (done ? n : prI + 1) + '/' + n;
+        var sent = runBox.querySelector('.pr-sent');
+        var dots = runBox.querySelector('.pr-dots');
+        var acts = runBox.querySelector('.pr-acts');
+        var doneEl = runBox.querySelector('.pr-done');
+        var again = runBox.querySelector('.pr-again');
+        sent.hidden = done; dots.hidden = done; acts.hidden = done;
+        doneEl.hidden = !done; again.hidden = !done;
+        if (prOut) { prOut.hidden = true; prOut.textContent = ''; }
+        if (done) {
+          doneEl.textContent = '🏁 ' + n + '문장 완주 · 같은 틀을 ' + n + '번 말했어요';
+          runBox._sent = '';
+          return;
+        }
+        var slot = items[prI];
+        var a = String(frame).split('___');
+        sent.innerHTML = escapeHtml(a[0]) + '<u>' + escapeHtml(patSlot(frame, slot)) + '</u>' + escapeHtml(a[1] || '');
+        dots.innerHTML = items.map(function (x, i) {
+          return '<i class="' + (i <= prI ? 'on' : '') + '"></i>';
+        }).join('');
+        runBox._sent = patSentence(frame, slot);
+      };
+      var sayRun = function (slow) {
+        if (!runBox._sent || !speakOk) return;
+        speak(runBox._sent, slow ? 0.75 : speedRate());
+      };
+      runBtn.addEventListener('click', function () {
+        prI = 0;
+        box.classList.add('running');
+        paintRun();
+        sayRun();
+      });
+      runBox.addEventListener('click', function (ev) {
+        var b = ev.target.closest ? ev.target.closest('[data-pr]') : null;
+        if (!b) return;
+        var k = b.dataset.pr;
+        if (k === 'say') sayRun();
+        else if (k === 'slow') sayRun(true);
+        else if (k === 'shadow') { if (runBox._sent) shadowTarget(runBox._sent, b, prOut); }
+        else if (k === 'next') {
+          prI++;
+          paintRun();
+          if (prI < items.length) sayRun();
+        } else if (k === 'again') { prI = 0; paintRun(); sayRun(); }
+        else if (k === 'close') { box.classList.remove('running'); prI = 0; }
+      });
+    }
   }
 
   /* ---------------- 테마 ---------------- */
@@ -1673,6 +1785,10 @@
   var CUR_ANSWER = '';
   var uiMode = 'quiz';
   var curMode = 'quiz';   /* 지금 매기고 있는 학습 모드 — 모드별 기록의 기준 */
+  /* v4.7 — 세션 복기용 '내가 고른 답'. localStorage에는 아무것도 남기지 않는다(메모리 전용).
+     카드가 바뀔 때가 아니라 **새 세션 객체가 들어올 때** 비운다(nextCard 맨 앞)._log 표식으로 판별. */
+  var SET_LOG = [];
+  var LAST_PICK = '';
 
   function mixWeights() {
     return store.settings.includeBasic ? MIX_BASIC : presetObj().mix;
@@ -1924,6 +2040,7 @@
 
   function nextCard() {
     if (!S) return;
+    if (S._log !== SET_LOG) { SET_LOG = []; S._log = SET_LOG; }   /* 새 세션 — 복기 로그도 새로 */
     if (S.i >= S.queue.length) { endSession(); return; }
     recReset();   /* 카드가 넘어가면 앞 카드에서 만든 녹음·안내는 즉시 버린다 */
     var item = S.queue[S.i];
@@ -2110,6 +2227,7 @@
       else if (b === btn && !ok) b.classList.add('wrong');
       else b.classList.add('dim');
     });
+    LAST_PICK = picked;   /* 복기 화면의 '내 답' */
     grade(c, ok ? 2 : 0);
     var rr = peek(c.w);
     var nextDue = rr.st >= MASTER_ST ? '마스터 (60일+)' : STAGE_LABEL[rr.st];
@@ -2318,6 +2436,7 @@
       gap.textContent = bt.ans;
       gap.classList.toggle('filled', ok);
     }
+    LAST_PICK = picked;
     grade(c, ok ? 2 : 0);
     var rr = peek(c.w);
     var nextDue = rr.st >= MASTER_ST ? '마스터 (60일+)' : STAGE_LABEL[rr.st];
@@ -2489,6 +2608,7 @@
     row2.dataset.state = ok ? 'ok' : 'no';
     row2.className = 'answer-row ' + (ok ? 'ok' : 'no');
     var c = O.c;
+    LAST_PICK = mine;
     grade(c, ok ? 2 : 0);
     var rr = peek(c.w);
     var nextDue = rr.st >= MASTER_ST ? '마스터 (60일+)' : STAGE_LABEL[rr.st];
@@ -2619,6 +2739,10 @@
       sayRow(c) +
       '<div class="fb-srs">' + (ok ? '다음 복습: ' + nextDue + (rr.st >= MASTER_ST ? '' : ' · ' + rr.st + '단계') : '오답 등록 · 10분 뒤 다시 물어봐요') + '</div>';
     fb.hidden = false;
+    /* v4.7 마이크로 인터랙션 — 정답엔 짧게 튀는 표시, 오답은 고른 보기만 살짝 흔들린다(색·진동은 이미 grade가 담당) */
+    fb.classList.remove('fb-in-ok', 'fb-in-no');
+    void fb.offsetWidth;
+    fb.classList.add(ok ? 'fb-in-ok' : 'fb-in-no');
     $('#fbNext').addEventListener('click', advance);
     bindChunkPanel(fb, exampleOf(c), chunkProtect(c));
     bindPatternPanel(fb, c);
@@ -2690,6 +2814,7 @@
       answered = true;
       var g = +b.dataset.g;
       var c = S.queue[S.i].c;
+      LAST_PICK = '';
       grade(c, g);
       var gr = peek(c.w);
       toast(gr.st >= MASTER_ST ? '마스터 · 60일+ 유지' : '다음 복습: ' + STAGE_LABEL[gr.st]);
@@ -2707,6 +2832,10 @@
     var ts = todayStats();
     ts.n++;
     var ok = quality === 2;
+    /* 복기용 기록 — 방금 고른 답까지. 실패해도 다시 묻지 않으므로 '내 답 vs 정답'이 남는다 */
+    SET_LOG.push({ w: c.w, ok: ok, pick: LAST_PICK == null ? '' : String(LAST_PICK), m: curMode });
+    LAST_PICK = '';
+    if (ok) haptic(8);
     if (ok) ts.ok++;
     if (first) {
       bumpNew();
@@ -2790,20 +2919,137 @@
     if (rc) rc.textContent = (isRecall ? '🔁 되찾음 ' + correct + '/' + total + ' · ' : '') +
       '최고 연속 정답 ' + (S.best || 0) + ' · 정답률 ' + pct + '% · 오늘 ' + goalN + '문제' +
       (goalN >= dailyGoal() ? ' (목표 달성)' : ' / 목표 ' + dailyGoal());
+    /* ---------- v4.7 세션 복기 ----------
+       Duolingo Lesson Review의 타일 구조를 우리 카드에 맞춘 것:
+       문제별 한 줄을 누르면 그 자리에서 「내 답 / 정답 / 뜻·예문」이 열리고 바로 듣고 따라 말한다.
+       고른 답은 메모리(SET_LOG)에만 있고 저장소에는 아무 것도 더하지 않는다. */
     var list = $('#rList');
     list.innerHTML = '';
-    var seen = {};
+    var rows = [];
+    var seenQ = {};
     S.answers.forEach(function (a) {
-      if (seen[a.w]) return;
-      seen[a.w] = 1;
-      var d = document.createElement('div');
-      d.className = 'r-item' + (a.ok ? '' : ' no');
-      var r = peek(a.w);
-      d.innerHTML = '<b>' + escapeHtml(a.w) + '</b><span>' +
-        (isRecall ? (a.ok ? '✓ 되찾음' : '10분 뒤 다시') : (a.ok ? STAGE_LABEL[(r && r.st) || 0] : '10분 뒤')) +
-        '</span>';
-      list.appendChild(d);
+      if (seenQ[a.w]) return;
+      seenQ[a.w] = 1;
+      rows.push(a);
     });
+    var pickOf = {};
+    SET_LOG.forEach(function (x) { if (x.pick && !pickOf[x.w]) pickOf[x.w] = x; });
+    var wrongRows = rows.filter(function (a) { return !a.ok; });
+    var revFilter = 'all';
+
+    function revStage(a) {
+      var r = peek(a.w);
+      return isRecall ? (a.ok ? '✓ 되찾음' : '10분 뒤 다시')
+        : (a.ok ? STAGE_LABEL[(r && r.st) || 0] : '10분 뒤');
+    }
+
+    function revDetail(a, c) {
+      var lg = pickOf[a.w];
+      var pick = lg && lg.pick ? String(lg.pick) : '';
+      var html = '';
+      if (pick) {
+        var same = pick.toLowerCase() === String(c.w).toLowerCase();
+        html += '<p class="rm-line"><em>내 답</em><span class="' + (same ? 'rm-same' : 'rm-my') + '">' + escapeHtml(pick) + '</span></p>';
+      } else {
+        html += '<p class="rm-line rm-none"><em>내 답</em><span>' +
+          (a.ok ? '정답으로 풀었어요' : '내 답이 남아 있지 않아요') + '</span></p>';
+      }
+      html += '<p class="rm-line"><em>정답</em><span class="rm-ok">' + escapeHtml(c.w) + '</span></p>';
+      if (c.m) html += '<p class="rm-line"><em>뜻</em><span>' + escapeHtml(c.m) + '</span></p>';
+      if (c._lv === 6 && c.e) html += '<p class="rm-line"><em>응답</em><span>' + escapeHtml(c.e) + (c.k ? '<br>' + escapeHtml(c.k) : '') + '</span></p>';
+      else if (c.e) html += '<p class="rm-line"><em>예문</em><span>' + escapeHtml(c.e) + (c.k ? '<br>' + escapeHtml(c.k) : '') + '</span></p>';
+      var sayT = c._lv === 6 ? c.w : (c.w || c.e || '');
+      html += '<div class="rm-acts">' +
+        '<button class="ghost-btn small" data-rm="say">🔊 듣기</button>' +
+        (micSupport() ? '<button class="ghost-btn small" data-rm="shadow">🎤 따라 말하기</button>' : '') +
+        '<span class="rm-due">' + escapeHtml(revStage(a)) + '</span></div>' +
+        (micSupport() ? '<p class="rm-out" hidden></p>' : '');
+      return { html: html, say: sayT };
+    }
+
+    function paintReview() {
+      var show = revFilter === 'no' ? wrongRows : rows;
+      list.innerHTML = '';
+      show.forEach(function (a) {
+        var c = cardByW(a.w);
+        if (!c) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'r-wrap' + (a.ok ? '' : ' no');
+        var btn = document.createElement('button');
+        btn.className = 'r-item' + (a.ok ? '' : ' no');
+        btn.dataset.w = a.w;
+        btn.setAttribute('aria-expanded', 'false');
+        btn.innerHTML = '<b>' + escapeHtml(a.w) + '</b><span>' + revStage(a) + '</span><i class="r-caret">▾</i>';
+        var det = document.createElement('div');
+        det.className = 'r-more';
+        det.hidden = true;
+        wrap.appendChild(btn);
+        wrap.appendChild(det);
+        list.appendChild(wrap);
+      });
+      var rf = $('#rFilter');
+      if (rf) {
+        rf.hidden = !wrongRows.length;
+        var fa = $('#rFilterAll'), fn = $('#rFilterNo');
+        if (fa) fa.textContent = rows.length;
+        if (fn) fn.textContent = wrongRows.length;
+        $$('.rev-chip', rf).forEach(function (b) {
+          var on = (b.dataset.rev === 'no') === (revFilter === 'no');
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+      var cap = $('#rCap');
+      if (cap) cap.textContent = '이번 세트 복기 · 누르면 내 답과 정답' + (wrongRows.length && revFilter === 'no' ? ' (틀린 ' + wrongRows.length + '개)' : '');
+    }
+
+    list.onclick = function (ev) {
+      var b = ev.target.closest ? ev.target.closest('.r-item') : null;
+      if (b && list.contains(b)) {
+        var wrap = b.parentNode;
+        var det = wrap.querySelector('.r-more');
+        var open = b.getAttribute('aria-expanded') === 'true';
+        b.setAttribute('aria-expanded', open ? 'false' : 'true');
+        wrap.classList.toggle('open', !open);
+        det.hidden = open;
+        if (!open) {
+          var c = cardByW(b.dataset.w);
+          var built = revDetail({ w: b.dataset.w, ok: !wrap.classList.contains('no') }, c);
+          det.innerHTML = built.html;
+          det._say = built.say;
+          det.scrollIntoView && det.scrollIntoView({ block: 'nearest' });
+        }
+        return;
+      }
+      var act = ev.target.closest ? ev.target.closest('[data-rm]') : null;
+      if (!act) return;
+      var box = act.closest('.r-more');
+      var w = box && box.parentNode.querySelector('.r-item') ? box.parentNode.querySelector('.r-item').dataset.w : '';
+      var card = w ? cardByW(w) : null;
+      if (!card) return;
+      if (act.dataset.rm === 'say') speak(box && box._say ? box._say : card.w);
+      else if (act.dataset.rm === 'shadow') shadowTarget(box && box._say ? box._say : card.w, act, box.querySelector('.rm-out'));
+    };
+    paintReview();
+    var rfl = $('#rFilter');
+    if (rfl) {
+      rfl.onclick = function (ev) {
+        var b = ev.target.closest ? ev.target.closest('.rev-chip') : null;
+        if (!b) return;
+        revFilter = b.dataset.rev === 'no' ? 'no' : 'all';
+        paintReview();
+      };
+    }
+    /* 다음 복습 리듬 — 이 세트 카드들이 언제 다시 오는지 한 줄로(Speak의 Smart Review가 보여주는 '다음 간격') */
+    var rhy = $('#rRhythm');
+    if (rhy) {
+      var cnt = {};
+      rows.forEach(function (a) { var l = revStage(a); cnt[l] = (cnt[l] || 0) + 1; });
+      var order = STAGE_LABEL.concat(['✓ 되찾음', '10분 뒤 다시']);
+      var parts = order.filter(function (l) { return cnt[l]; }).map(function (l) { return l + ' ' + cnt[l]; });
+      rhy.textContent = parts.length ? '🔁 다음 복습 리듬 · ' + parts.slice(0, 4).join(' · ') : '';
+      rhy.hidden = !parts.length;
+    }
     /* 틀린 카드만 모아 10문제 한 세트 — Duolingo·Speak가 대화 끝에 지적한 것만 다시 물어보는 방식 */
     var wrongs = [];
     var seenW = {};
@@ -5335,6 +5581,45 @@
       },
       /* v4.5 — 고친 문장 다시 말하기 */
       fixSayItems: function (n) { return fixSayItems(n); },      startFixRun: startFixRun,
+      /* v4.7 — 세션 복기 · 패턴 3연타 */
+      setLog: function () { return SET_LOG.slice(); },
+      revState: function () {
+        var l = $('#rList');
+        var rows = l ? $$('.r-wrap', l) : [];
+        var opened = rows.filter(function (w) { return w.classList.contains('open'); })[0] || null;
+        return {
+          n: rows.length,
+          wrong: rows.filter(function (w) { return w.classList.contains('no'); }).length,
+          filterHidden: $('#rFilter') ? $('#rFilter').hidden : null,
+          cap: $('#rCap') ? $('#rCap').textContent : '',
+          rhythm: $('#rRhythm') ? $('#rRhythm').textContent : '',
+          opened: !!opened,
+          detail: opened ? opened.querySelector('.r-more').textContent : '',
+          detailHidden: opened ? opened.querySelector('.r-more').hidden : null,
+          exp: rows.length ? rows[0].querySelector('.r-item').getAttribute('aria-expanded') : '',
+          hasSay: !!(opened && opened.querySelector('[data-rm="say"]')),
+          hasShadow: !!(opened && opened.querySelector('[data-rm="shadow"]'))
+        };
+      },
+      revOpen: function (i) { var b = $$('#rList .r-item')[i]; if (b) b.click(); return !!b; },
+      revFilter: function (v) {
+        var b = $$('#rFilter .rev-chip').filter(function (x) { return x.dataset.rev === (v === 'no' ? 'no' : 'all'); })[0];
+        if (b) b.click();
+        return !!b;
+      },
+      patRunState: function () {
+        var box = document.querySelector('#feedback .pat-run') || document.querySelector('#qaPatMount .pat-run');
+        if (!box) return null;
+        var host = box.closest ? box.closest('.pat') : null;
+        return {
+          open: !!(host && host.classList.contains('running')),
+          i: +box.dataset.i || 0, n: +box.dataset.n || 0, done: box.dataset.done === '1',
+          sent: (box.querySelector('.pr-sent') || {}).textContent || '',
+          num: (box.querySelector('.pr-n') || {}).textContent || '',
+          dotsOn: box.querySelectorAll('.pr-dots i.on').length,
+          msg: (box.querySelector('.pr-done') || {}).textContent || ''
+        };
+      },
       fixRunState: function () {
         if (!inFixRun() || !FIXRUN) return null;
         return {

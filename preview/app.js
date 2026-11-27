@@ -639,13 +639,21 @@
       if (v) u.voice = v;
       var t = String(list[i] || '');
       var pause = 700 + Math.min(1400, t.length * 55);   /* 그 청크를 따라 말할 틈 */
+      /* v4.7 — onend가 안 오는 브라우저(음성 미설치·엔진 멈춤)에서도 리듬이 멈추지 않게 안전장치.
+         정상이면 onend가 먼저 불리고 타이머는 아무 것도 안 한다 */
+      var moved = false;
+      var guard = null;
       var next = function () {
+        if (moved) return;
+        moved = true;
+        if (guard) clearTimeout(guard);
         if (token !== CH_SPEAK.token) { label(false); return; }
         i++;
         setTimeout(step, pause);
       };
       u.onend = next;
       u.onerror = next;
+      guard = setTimeout(next, pause + 3000);
       try { window.speechSynthesis.speak(u); } catch (e) { mark(-1); label(false); }
     })();
   }
