@@ -418,8 +418,6 @@
     REC.started = 0;
   }
 
-  function recNoteText() { return REC.note; }
-
   /* 비교 들을 때 원어민 발화 속도 — 0 이면 앱 속도(설정)를 따르고, 1 / 0.75 를 고르면 그 속도로 고정.
      화면을 옴겨도 고른 속도는 유지되지만 저장(localStorage)하지는 않는다 */
   function recRate() { return Number(REC.rate) === 0.75 || Number(REC.rate) === 1 ? Number(REC.rate) : speedRate(); }
@@ -1275,7 +1273,6 @@
   rearm();
 
   /* ---------------- SRS ---------------- */
-  function isMaster(word) { var r = peek(word); return !!(r && r.st >= MASTER_ST); }
   function isDue(word) { var r = peek(word); return !!(r && r.st < MASTER_ST && r.due && r.due <= Date.now()); }
 
   function dueList() {
@@ -1681,12 +1678,6 @@
     return store.settings.includeBasic ? MIX_BASIC : presetObj().mix;
   }
 
-  /* 새 카드는 프리셋 가중치대로. 배열이 이미 '회화 빈도·중요도 순'이라 앞에서부터 가져오면
-     자주 쓰는 것부터 나온다. 설정에서 '랜덤'을 고르면 예전처럼 섞는다. */
-  function orderPool(arr) {
-    return store.settings.order === 'random' ? shuffle(arr.slice()) : arr.slice();
-  }
-
   /* ---------- 세트 짜기 — 같은 카드가 다음 세트에 또 나오지 않게 ----------
      우선순위: ① 복습 대기(due <= now, 오래된 순)
                ② 한 번도 안 푼 카드 — 배열 순서 = 회화 빈도·중요도 순
@@ -1701,11 +1692,6 @@
 
   function lastTouched(r) {
     return Math.max((r && r.t) || 0, (r && r.sp) || 0);
-  }
-
-  function touchedToday(word) {
-    var r = peek(word);
-    return !!(r && lastTouched(r) >= dayStart());
   }
 
   function setRank(pool) {
