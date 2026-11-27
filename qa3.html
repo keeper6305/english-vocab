@@ -2395,6 +2395,11 @@ async function v47ReviewTests(c) {
     rv2.detail.replace(/\s+/g, ' ').slice(0, 90));
   rec(c.w, 'v47복기:내 답이 기록됨', rv2.detail.indexOf(String(uq[0].pick)) > -1, 'pick=' + uq[0].pick);
   rec(c.w, 'v47복기:듣기 버튼', rv2.hasSay, 'say=' + rv2.hasSay);
+  /* 360px에서 '따라 말하기'가 두 줄로 접히면 줄 높이가 커지고 옆의 '10분 뒤'가 눌린다 */
+  var rbtns = Array.prototype.slice.call(doc.querySelectorAll('#rList .rm-acts button'));
+  var rTall = 0;
+  rbtns.forEach(function (x) { var h = Math.round(x.getBoundingClientRect().height); if (h > rTall) rTall = h; });
+  rec(c.w, 'v47복기:버튼 한 줄 유지', rbtns.length >= 1 && rTall <= 56, 'n=' + rbtns.length + ' tallest=' + rTall + 'px');
   QA.revOpen(0); await sleep(40);
   rec(c.w, 'v47복기:다시 누르면 접힘', QA.revState().opened === false && QA.revState().exp === 'false',
     'opened=' + QA.revState().opened + ' exp=' + QA.revState().exp);
