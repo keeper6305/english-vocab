@@ -1259,8 +1259,9 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 @keyframes dotPop { from { transform: scaleY(.25); } to { transform: none; } }
 .study-dots i.ok { animation: dotPop .22s ease; }
 
-/* 피드백 머리(정답/다음)는 긴 해설을 읽는 동안 위에 붙어 있는다 */
-.feedback .fb-head { position: sticky; top: 0; z-index: 2; background: var(--bg-elev); padding: 2px 0 7px; margin-top: -2px; }
+/* 피드백 머리(정답/다음)는 긴 해설을 읽는 동안 위에 붙어 있는다.
+   앱 상단바(.topbar, sticky·z20·60px) 아래에 붙여야 가려지지 않는다 — top:0이면 상단바 밑으로 숨는다 */
+.feedback .fb-head { position: sticky; top: 60px; z-index: 2; background: var(--bg-elev); padding: 2px 0 7px; margin-top: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .feedback.fb-in-ok .fb-head, #quizOptions .opt.wrong, #blankOptions .opt.wrong,

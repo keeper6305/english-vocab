@@ -2498,6 +2498,34 @@ async function v47PatRunTests(c) {
   QA.patUnmount();
 }
 
+/* v4.7.2 — 스크롤해도 '정답!/다음' 머리가 앱 상단바에 가리지 않는지 */
+async function v47StickyTests(c) {
+  var q = c.q, w = c.win, QA = c.win.__QA;
+  await goHome(c);
+  await startMix(c, 'quiz');
+  var ans = QA.options().answer;
+  var btns = Array.prototype.slice.call(c.doc.querySelectorAll('#quizOptions .opt'));
+  var b = btns.filter(function (x) { return x.dataset.val === ans; })[0];
+  if (!b) { rec(c.w, 'v47고정:피드백 열기', false, '보기 없음'); return; }
+  b.click();
+  await sleep(90);
+  var fb = q('#feedback');
+  if (!fb || fb.hidden) { rec(c.w, 'v47고정:피드백 열기', false, 'hidden'); return; }
+  var tb = q('.topbar');
+  var tbB = Math.round(tb.getBoundingClientRect().bottom);
+  w.scrollTo(0, (fb.offsetTop || 0) + 200);
+  await sleep(120);
+  var head = fb.querySelector('.fb-head');
+  var hTop = Math.round(head.getBoundingClientRect().top);
+  var nb = q('#fbNext').getBoundingClientRect();
+  rec(c.w, 'v47고정:머리 상단바 아래', hTop >= tbB - 1, 'headTop=' + hTop + ' topbarBottom=' + tbB);
+  rec(c.w, 'v47고정:다음 버튼 보임', Math.round(nb.top) >= tbB - 1 && Math.round(nb.bottom) <= w.innerHeight,
+    'btn ' + Math.round(nb.top) + '~' + Math.round(nb.bottom) + ' / 화면 ' + w.innerHeight);
+  w.scrollTo(0, 0);
+  await sleep(40);
+  await leaveStudy(c);
+}
+
 async function resetTests(c) {
   var q = c.q;
   q('.tab[data-tab="stats"]').click(); await sleep(140);
@@ -2929,6 +2957,7 @@ async function run() {
   await section('v46rowsay', deep, v46RowSayTests);
   for (var x8 = 0; x8 < ctxs.length; x8++) await section('v47review', ctxs[x8], v47ReviewTests);
   for (var x9 = 0; x9 < ctxs.length; x9++) await section('v47pattern', ctxs[x9], v47PatRunTests);
+  for (var xa = 0; xa < ctxs.length; xa++) await section('v47sticky', ctxs[xa], v47StickyTests);
   await section('reset', deep, resetTests);
   rec(deep.w, '콘솔에러 0건', errors.length === 0, errors.slice(0, 5).join(' | '));
   render();
