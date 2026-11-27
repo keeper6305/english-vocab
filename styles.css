@@ -1208,7 +1208,8 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .rev-chip b { font-weight: 800; color: var(--text); margin-left: 2px; }
 .rev-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .rev-chip.on b { color: #fff; }
-.result-list { max-height: min(58vh, 360px); }
+.result-list { max-height: min(58vh, 360px); scrollbar-gutter: stable; }
+.result-list .r-item { padding-right: 16px; }
 .r-wrap { display: flex; flex-direction: column; }
 .r-item { width: 100%; border: 0; font-family: inherit; color: var(--text); cursor: pointer; }
 .r-item .r-caret { font-style: normal; font-size: 10px; color: var(--text-dim); transition: transform .2s ease; }
@@ -1243,7 +1244,8 @@ mark.fx-new { background: var(--ok-soft); color: var(--ok); font-weight: 800; pa
 .pr-dots i { flex: 1 1 0; height: 4px; border-radius: 99px; background: var(--bg-soft); }
 .pr-dots i.on { background: var(--accent); }
 .pr-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-.pr-acts .ghost-btn { padding: 6px 9px; font-size: 11.5px; }
+.pr-acts .ghost-btn { padding: 6px 9px; font-size: 11.5px; white-space: nowrap; }
+.pr-acts .primary-btn.small { padding: 8px 13px; font-size: 12px; white-space: nowrap; }
 .ghost-btn.pat-go { border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); color: var(--accent); font-weight: 800; }
 .pr-out { margin: 7px 0 0; font-size: 12px; color: var(--text-soft); }
 .pr-done { margin: 8px 0 0; font-size: 12.5px; font-weight: 800; color: var(--ok); }

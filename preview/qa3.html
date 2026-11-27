@@ -2457,6 +2457,11 @@ async function v47PatRunTests(c) {
   rec(c.w, 'v47패턴:칩 잠시 숨김', c.win.getComputedStyle(box.querySelector('.pat-chips')).display === 'none',
     c.win.getComputedStyle(box.querySelector('.pat-chips')).display);
   rec(c.w, 'v47패턴:1칸 켜짐', !!s1 && s1.dotsOn === 1, s1 ? 'on=' + s1.dotsOn : '');
+  /* 버튼 글자가 두 줄로 접히면(360px에서 '따라 말하기'가 갈라짐) 손가락 목표가 흔들린다 */
+  var pbtns = Array.prototype.slice.call(box.querySelectorAll('.pr-acts button'));
+  var tallest = 0;
+  pbtns.forEach(function (x) { var h = Math.round(x.getBoundingClientRect().height); if (h > tallest) tallest = h; });
+  rec(c.w, 'v47패턴:버튼 한 줄 유지', pbtns.length >= 2 && tallest <= 42, 'n=' + pbtns.length + ' tallest=' + tallest + 'px');
 
   var nx = box.querySelector('[data-pr="next"]');
   if (nx) nx.click();
