@@ -2461,7 +2461,7 @@ async function v47PatRunTests(c) {
   var pbtns = Array.prototype.slice.call(box.querySelectorAll('.pr-acts button'));
   var tallest = 0;
   pbtns.forEach(function (x) { var h = Math.round(x.getBoundingClientRect().height); if (h > tallest) tallest = h; });
-  rec(c.w, 'v47패턴:버튼 한 줄 유지', pbtns.length >= 2 && tallest <= 42, 'n=' + pbtns.length + ' tallest=' + tallest + 'px');
+  rec(c.w, 'v47패턴:버튼 한 줄 유지', pbtns.length >= 2 && tallest <= 56, 'n=' + pbtns.length + ' tallest=' + tallest + 'px (두 줄이면 60px+)');
 
   var nx = box.querySelector('[data-pr="next"]');
   if (nx) nx.click();
